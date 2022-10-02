@@ -7,7 +7,7 @@
   "author": "Jordan Breton <jordan.breton.dev@gmail.com>",
   "license": "GNU GPL 3",
   "private": false,
-  "dependencies": {
+  "devDependencies": {
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.10.0"
   }
 }

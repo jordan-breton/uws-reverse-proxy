@@ -1,12 +1,6 @@
 const http = require('http');
 
-const {
-	App : uWebSocketServer,
-	SSLApp : uWebSocketSSLServer
-} = require('uWebSockets.js');
-
-const RequestDecoder = require('./lib/uWSRequestDecoder');
-const requestDecoder = new RequestDecoder();
+const decodeRequest = require('./lib/uWSRequestDecoder');
 
 const RequestProxyStream = require('./lib/RequestProxyStream');
 const { pipeline } = require('stream');
@@ -47,103 +41,122 @@ function writeHeaders(res, headers){
 	});
 }
 
-module.exports = {
+// We do not want to ship a specific version of uWebSocket.js
+// TODO : handle version potential incompatibilities
+module.exports = function(uWebSocketDep){
+	const {
+		App : uWebSocketServer,
+		SSLApp : uWebSocketSSLServer
+	} = uWebSocketDep;
 
-	/**
-	 * @param {module:http.Server} native
-	 * @param {Object} [config]
-	 * @see https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html
-	 *
-	 */
-	createCompatibleUWSServer(native, config){
-		const {
-			uWebSocket = {},
-			native : {
-				port = 35974,
-				on : {
-					listen  = null
+	return {
+		/**
+		 * @param {module:http.Server} native
+		 * @param {Object} [config]
+		 * @see https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html
+		 *
+		 */
+		createCompatibleUWSServer(native, config) {
+			const {
+				uWebSocket = {},
+				native: {
+					port = 35974,
+					on: {
+						listen = null
+					} = {}
 				} = {}
-			} = {}
-		} = config;
+			} = config;
 
-		if(listen && typeof listen !== 'function')throw new Error(
-			'If specified, native.on.listen must be a function !'
-		);
+			if (listen && typeof listen !== 'function') throw new Error(
+				'If specified, native.on.listen must be a function !'
+			);
 
-		let uWS;
+			let uWS, isSSL = false;
 
-		const isSSL = uwsSSLKeys.some(key => key in uWebSocket);
-		if(isSSL){
-			uWS = new uWebSocketSSLServer(uWebSocket);
-		}else {
-			uWS = new uWebSocketServer(uWebSocket);
+			if(uWebSocket instanceof uWebSocketServer || uWebSocket instanceof uWebSocketSSLServer){
+				isSSL = uWebSocket instanceof uWebSocketSSLServer;
+				uWS = uWebSocket;
+			}else{
+				isSSL = uwsSSLKeys.some(key => key in uWebSocket);
+				if (isSSL) {
+					uWS = new uWebSocketSSLServer(uWebSocket);
+				} else {
+					uWS = new uWebSocketServer(uWebSocket);
+				}
+			}
+
+			uWS.any('/*', (res, req) => {
+				const decoded = decodeRequest(res, req);
+
+				const values = {
+					for: decoded.client.remoteAddress,
+					port: 443,
+					proto: isSSL ? 'https' : 'http'
+				};
+
+				['for', 'port', 'proto'].forEach(function (header) {
+					decoded.request.headers['x-forwarded-' + header] =
+						(decoded.request.headers['x-forwarded-' + header] || '') +
+						(decoded.request.headers['x-forwarded-' + header] ? ',' : '') +
+						values[header];
+				});
+
+				decoded.request.headers['x-forwarded-host'] = decoded.request.headers['x-forwarded-host']
+					|| decoded.request.headers['host']
+					|| '';
+
+				console.log(decoded.request.url, decoded.request.query);
+
+				const proxyRequest = http.request({
+					hostname: '127.0.0.1',
+					port,
+					path: decoded.request.url + '?' + decoded.request.query,
+					method: decoded.request.method,
+					headers: Object.assign(
+						{},
+						decoded.request.headers,
+						{}
+					)
+				}, response => {
+					const headers = Object.assign({}, response.headers);
+
+					// Writing in ONE IO at once.
+					res.cork(() => {
+						// Giving the proxied request's response back to the client
+						res.writeStatus(response.statusCode.toString());
+						writeHeaders(res, headers);
+					});
+
+					// Dealing with request body stream
+					response.on('data', chunk => {
+						res.write(chunk);
+					});
+
+					response.on('close', () => {
+
+						// TODO : empty the buffer in a cork.
+						res.end();
+					});
+				});
+
+				const requestProxyStream = new RequestProxyStream(res);
+
+				res.onAborted(() => {
+					requestProxyStream.destroy(new Error(
+						'Request aborted by client.'
+					));
+				});
+
+				pipeline(requestProxyStream, proxyRequest, () => {
+					proxyRequest.end();
+				});
+			});
+
+			// We only want to listen on localhost, because uWS will proxy its requests
+			// in the native http Server
+			native.listen(port, '127.0.0.1', listen || noop);
+
+			return uWS;
 		}
-
-		uWS.any('/*', (res, req) => {
-			const decoded = requestDecoder.createContext(req, res);
-
-			const values = {
-				for  : decoded.client.remoteAddress,
-				port : 443,
-				proto: isSSL ? 'https' : 'http'
-			};
-
-			['for', 'port', 'proto'].forEach(function(header) {
-				decoded.request.headers['x-forwarded-' + header] =
-					(decoded.request.headers['x-forwarded-' + header] || '') +
-					(decoded.request.headers['x-forwarded-' + header] ? ',' : '') +
-					values[header];
-			});
-
-			decoded.request.headers['x-forwarded-host'] = decoded.request.headers['x-forwarded-host']
-													   || decoded.request.headers['host']
-													   || '';
-
-			const proxyRequest = http.request({
-				hostname : '127.0.0.1',
-				port,
-				path : decoded.request.url,
-				method : decoded.request.method,
-				headers : Object.assign(
-					{},
-					decoded.request.headers,
-					{
-
-					}
-				)
-			}, response => {
-				res.writeStatus(response.statusCode.toString());
-
-				const headers = Object.assign({}, response.headers);
-
-				writeHeaders(res, headers);
-
-				response.on('data', chunk => {
-					res.write(chunk);
-				});
-
-				response.on('close', () => {
-					res.end();
-				});
-			});
-
-			const requestProxyStream = new RequestProxyStream(res);
-
-			res.onAborted(() => {
-				requestProxyStream.destroy(new Error(
-					'Request aborted by client.'
-				));
-			});
-
-			pipeline(requestProxyStream, proxyRequest, () => {
-				proxyRequest.end();
-			});
-		});
-
-		// We only want to listen on localhost, because uWS will proxy its request
-		// in the native http Server
-		native.listen(port, '127.0.0.1', listen || noop);
-
-		return uWS;
 	}
 }

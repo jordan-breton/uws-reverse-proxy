@@ -1,0 +1,13 @@
+{
+  "name": "uwebsocket-compat-layer",
+  "version": "0.1.0",
+  "description": "Compatibility layer for uWebSocket.js. Enable use of uWebSocket.js and other node:http compatable library (as express) on the same port.",
+  "main": "index.js",
+  "repository": "git@github.com:jordan-breton/uWebSocket-compat-layer.git",
+  "author": "Jordan Breton <jordan.breton.dev@gmail.com>",
+  "license": "GNU GPL 3",
+  "private": false,
+  "dependencies": {
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.10.0"
+  }
+}

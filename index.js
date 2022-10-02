@@ -52,36 +52,47 @@ module.exports = function(uWebSocketDep){
 	return {
 		/**
 		 * @param {module:http.Server} native
-		 * @param {Object} [config]
+		 * @param {Object} [uWebsocketConfig]
+		 * @param [uWebsocketConfig.server]
+		 * @param {Object} [uWebsocketConfig.config={}]
+		 * @param {Object} [httpConfig={}]
+		 * @param {int} [httpConfig.port=35974]
+		 * @param {Object} [httpConfig.on={}]
+		 * @param {function} [httpConfig.on.listen=null]
 		 * @see https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html
 		 *
 		 */
-		createCompatibleUWSServer(native, config) {
+		createCompatibleUWSServer(
+			native,
+			uWebsocketConfig = {},
+			httpConfig = {}
+		) {
 			const {
-				uWebSocket = {},
-				native: {
-					port = 35974,
-					on: {
-						listen = null
-					} = {}
+				server,
+				config : uWebSocketConfig= {}
+			} = uWebsocketConfig || {};
+
+			const {
+				port = 35974,
+				on: {
+					listen = null
 				} = {}
-			} = config;
+			} = httpConfig || {};
 
 			if (listen && typeof listen !== 'function') throw new Error(
 				'If specified, native.on.listen must be a function !'
 			);
 
-			let uWS, isSSL = false;
+			let uWS, isSSL = uWebSocketConfig.ssl ?? false;
 
-			if(uWebSocket instanceof uWebSocketServer || uWebSocket instanceof uWebSocketSSLServer){
-				isSSL = uWebSocket instanceof uWebSocketSSLServer;
-				uWS = uWebSocket;
+			if(server){
+				uWS = server;
 			}else{
-				isSSL = uwsSSLKeys.some(key => key in uWebSocket);
+				isSSL = uwsSSLKeys.some(key => key in uWebSocketConfig);
 				if (isSSL) {
-					uWS = new uWebSocketSSLServer(uWebSocket);
+					uWS = new uWebSocketSSLServer(uWebSocketConfig);
 				} else {
-					uWS = new uWebSocketServer(uWebSocket);
+					uWS = new uWebSocketServer(uWebSocketConfig);
 				}
 			}
 

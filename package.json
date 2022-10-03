@@ -2,6 +2,12 @@
   "name": "uws-compat-layer",
   "version": "1.0.0",
   "description": "Compatibility layer for uWebSocket.js. Enable use of uWebSocket.js and other node:http compatable library (as express) on the same port.",
+  "keywords": [
+	  "uWebSocket.js",
+	  "express",
+	  "http",
+	  "websocket"
+  ],
   "main": "index.js",
   "repository": "git@github.com:jordan-breton/uws-compat-layer.git",
   "author": "Jordan Breton <jordan.breton.dev@gmail.com>",

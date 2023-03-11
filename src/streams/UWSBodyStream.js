@@ -1,13 +1,8 @@
-const {
-	Readable
-} = require('stream');
-
-const {
-	Buffer
-} = require('buffer');
+const { Readable } = require('stream');
+const { Buffer } = require('buffer');
 
 /**
- * @typedef RequestProxyStreamConfig
+ * @typedef UWSBodyStreamConfig
  * @property {int} [maxStackedBuffers=4096]
  */
 
@@ -15,11 +10,11 @@ const {
  * Translate a uWebSocket.js body data stream into a Readable stream, taking backpressure
  * into consideration.
  */
-class RequestToProxyStream extends Readable{
-	#res;
-	#sendQueue = [];
+class UWSBodyStream extends Readable{
+	#uwsResponse;
+	#sendingQueue = [];
 	#lastChunkReceived = false;
-	#maxStackedBuffers = 25;
+	#maxStackedBuffers = 4096;
 
 	/**
 	 * Copy a buffer into another one without consuming the copied buffer.
@@ -32,18 +27,19 @@ class RequestToProxyStream extends Readable{
 	}
 
 	/**
-	 * @param res uWebSocket.js Response object. Request body is in there. Pretty counter-intuitive.
-	 * @param {ReadableOptions & RequestProxyStreamConfig} config Stream config
+	 * @param uwsResponse uWebSocket.js Response object. Request body is in there. Pretty counter-intuitive.
+	 * @param {ReadableOptions & UWSBodyStreamConfig} config Stream config
 	 * @see https://nodejs.org/api/stream.html#new-streamreadableoptions
 	 */
-	constructor(res, config = {}) {
+	constructor(uwsResponse, config = {}) {
 		super(config);
 
-		this.#res = res;
-		this.#maxStackedBuffers = config.maxStackedBuffers || 4096; // with 512ko/chunk it represents 256Mo of backpressure allowed by stream;
+		// with 512ko/chunk it represents 256Mo of backpressure allowed by stream
+		this.#maxStackedBuffers = config.maxStackedBuffers || 4096;
+		this.#uwsResponse = uwsResponse;
 
 		// Immediately start to read data in res.
-		res.onData((chunk, isLast) => {
+		uwsResponse.onData((chunk, isLast) => {
 			this.#lastChunkReceived = isLast;
 			this.#trySendChunk(Buffer.from(chunk));
 
@@ -65,19 +61,20 @@ class RequestToProxyStream extends Readable{
 	 */
 	#trySendChunk(buffer){
 		if(!this.push(this.#createBufferCopy(buffer))){
-			if(this.#sendQueue.length === this.#maxStackedBuffers){
+			if(this.#sendingQueue.length === this.#maxStackedBuffers){
 
 				this.destroy(new Error(
-					'Max backpressure threshold reached !'
+					'Max backpressure threshold reached! Connection dropped.'
 				));
 
 				try{
-					this.#res.close();
+					// Will throw if already closed/aborted, we can ignore it.
+					this.#uwsResponse.close();
 				}catch(err){}
 
 				return false;
 			} else {
-				this.#sendQueue.push(buffer);
+				this.#sendingQueue.push(buffer);
 
 				return false;
 			}
@@ -90,7 +87,7 @@ class RequestToProxyStream extends Readable{
 	 * Try to end the current stream. Will abort if the sending queue is not empty.
 	 */
 	#tryEnd(){
-		if(this.#sendQueue.length === 0 && this.#lastChunkReceived) this.#close();
+		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
 	}
 
 	/**
@@ -103,17 +100,17 @@ class RequestToProxyStream extends Readable{
 
 	_read(n){
 		// Sending as many data as we can to empty the sendQueue filled by backpressure.
-		while (this.#sendQueue.length > 0 && this.#trySendChunk(this.#sendQueue[0])){
-			this.#sendQueue.shift();
+		while (this.#sendingQueue.length > 0 && this.#trySendChunk(this.#sendingQueue[0])){
+			this.#sendingQueue.shift();
 		}
 
-		if(this.#sendQueue.length === 0 && this.#lastChunkReceived) this.#close();
+		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
 	}
 
 	_destroy(error, callback) {
-		this.#sendQueue = [];
+		this.#sendingQueue = [];
 		callback(error);
 	}
 }
 
-module.exports = RequestToProxyStream;
+module.exports = UWSBodyStream;

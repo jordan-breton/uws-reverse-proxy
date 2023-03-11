@@ -1,20 +1,21 @@
 /**
  * Write the readStream into the uWebSocket.js response object, taking backpressure into consideration.
- * @param httpResponse
+ * @param uwsResponse
  * @param {Readable} readStream
  */
-module.exports = function(
-	httpResponse,
+function streamToUWSResponse(
+	uwsResponse,
 	readStream
 ){
 	// We do not know the length beforehand, so we must use a flag to end the response when the
 	// read stream is closed.
 	let shouldEnd = false;
 
-	// Keep a count of read/write to be able to know when to close, when shouldEnd is true,
-	// because of backpressure, you could have shouldEnd to true because the readStream have been consumed,
+	// Keep a count of read/write to be able to know when to close, when shouldEnd is true.
+	// Because of backpressure, we could have shouldEnd to true because the readStream have been consumed,
 	// but bytesRead > bytesWritten
-	// We don't want to randomly truncate our results :)
+	//
+	// We don't want to randomly truncate our responses :)
 	let bytesRead = 0;
 	let bytesWritten = 0;
 
@@ -22,8 +23,8 @@ module.exports = function(
 	const end = () => {
 		if(shouldEnd && bytesWritten === bytesRead){
 			try{
-				httpResponse.end();
-			}catch(e){
+				uwsResponse.end();
+			}catch(err){
 				// Nothing to do, we just ignore it. We want it closed anyway.
 			}
 		}
@@ -33,7 +34,7 @@ module.exports = function(
 		return !readStream.destroyed && readStream.destroy(err);
 	}
 
-	httpResponse.onAborted(() => destroyStream(new Error('Aborted')));
+	uwsResponse.onAborted(() => destroyStream(new Error('Aborted')));
 
 	readStream.on('data', async chunk => {
 		bytesRead += chunk.byteLength;
@@ -44,14 +45,14 @@ module.exports = function(
 				chunk.byteOffset + chunk.byteLength
 			);
 
-			httpResponse.cork(() => {
-				const ok = httpResponse.write(arrayBufferChunk);
+			uwsResponse.cork(() => {
+				const ok = uwsResponse.write(arrayBufferChunk);
 				if(!ok){
 					// We have backpressure
 					readStream.pause();
 
 					// We listen for backpressure drain
-					httpResponse.onWritable(function (){
+					uwsResponse.onWritable(function (){
 						// Bytes have been written by uWebSockets, we can resume
 						bytesWritten += chunk.byteLength;
 						readStream.resume();
@@ -85,3 +86,5 @@ module.exports = function(
 
 	readStream.resume();
 }
+
+module.exports = streamToUWSResponse;

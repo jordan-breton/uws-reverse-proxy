@@ -1,5 +1,7 @@
 const UWSProxy = require('./src/UWSProxy');
 
 module.exports = {
-	UWSProxy
+	UWSProxy,
+	createUWSConfig: UWSProxy.createUWSConfig,
+	createHTTPConfig: UWSProxy.createHTTPConfig
 };

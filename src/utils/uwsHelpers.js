@@ -1,15 +1,32 @@
 const TextDecoder  = new (require('util').TextDecoder)();
 
 /**
- * Decide a uWebSocket.js request into a convenient object.
+ * @private
+ * @typedef UWSDecodedRequest
+ * @property {Object} request
+ * @property {string} request.url
+ * @property {string} request.method
+ * @property {string} request.query
+ * @property {Object.<string, string|string[]>} request.headers
+ * @property {Object} client
+ * @property {string} client.remoteAddress
+ * @property {string|null} client.proxiedRemoteAddress
+ */
+
+/**
+ * @private
  *
- * @param uwsResponse For whatever reason, some info can only be found in the res object.
- * @param uwsRequest The request object we want to decode
- * @return {{request: {headers: {}, query: {}, cookies: {}}, client: {proxiedRemoteAddress: string|null, remoteAddress: string}}}
+ * Decode a uWebSockets.js request into a convenient object.
+ *
+ * @param {UWSResponse} uwsResponse For whatever reason, some info can only be found in the response object.
+ * @param {UWSRequest} uwsRequest The request object we want to decode
+ * @return {UWSDecodedRequest}
  */
 function decodeRequest(uwsResponse, uwsRequest){
+	// noinspection JSValidateTypes
+	/** @type {UWSDecodedRequest} */
 	const context = {
-		request : { headers : {}, cookies : {}, query : {} },
+		request : { headers : {} },
 		client : { remoteAddress : '0.0.0.0', proxiedRemoteAddress : null}
 	};
 
@@ -30,8 +47,11 @@ function decodeRequest(uwsResponse, uwsRequest){
 }
 
 /**
- * Write the given headers to the provided uWebSocket.js response object.
- * @param uwsResponse
+ * @private
+ *
+ * Write the given headers to the provided uWebSockets.js response object.
+ *
+ * @param {UWSResponse} uwsResponse
  * @param {Object.<string, string|string[]>} headers
  */
 function writeHeaders(uwsResponse, headers){

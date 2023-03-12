@@ -1,6 +1,8 @@
 /**
- * Write the readStream into the uWebSocket.js response object, taking backpressure into consideration.
- * @param uwsResponse
+ * @private
+ *
+ * Write the readStream into the uWebSockets.js response object, taking backpressure into consideration.
+ * @param {UWSResponse} uwsResponse
  * @param {Readable} readStream
  */
 function streamToUWSResponse(
@@ -60,7 +62,7 @@ function streamToUWSResponse(
 						// Close if no data remains to read
 						end();
 
-						// According to uWebSocket.js doc, writing nothing is still a success.
+						// According to uWebSockets.js doc, writing nothing is still a success.
 						return true;
 					});
 				}else{

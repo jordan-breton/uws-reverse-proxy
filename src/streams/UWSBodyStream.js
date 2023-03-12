@@ -2,12 +2,20 @@ const { Readable } = require('stream');
 const { Buffer } = require('buffer');
 
 /**
+ * @private
+ *
  * @typedef UWSBodyStreamConfig
- * @property {int} [maxStackedBuffers=4096]
+ * @property {int} [maxStackedBuffers=4096] Basically, a chunk size will be 500ko on average.
+ *                                          this limit is huge by default (4096 * 500ko ~= 2Go).
+ *                                          The fact is that uWebSockets.js receive faster than http.client
+ *                                          can send, and if this number is too low, the request will be aborted
+ *                                          to avoid congestions.
  */
 
 /**
- * Translate a uWebSocket.js body data stream into a Readable stream, taking backpressure
+ * @private
+ *
+ * Translate a uWebSockets.js body data stream into a Readable stream, taking backpressure
  * into consideration.
  */
 class UWSBodyStream extends Readable{
@@ -27,14 +35,14 @@ class UWSBodyStream extends Readable{
 	}
 
 	/**
-	 * @param uwsResponse uWebSocket.js Response object. Request body is in there. Pretty counter-intuitive.
-	 * @param {ReadableOptions & UWSBodyStreamConfig} config Stream config
+	 * @param {UWSResponse} uwsResponse uWebSockets.js Response object. Request body is in there. Pretty counter-intuitive.
+	 * @param {ReadableOptions & UWSBodyStreamConfig} config Stream configuration options.
 	 * @see https://nodejs.org/api/stream.html#new-streamreadableoptions
 	 */
 	constructor(uwsResponse, config = {}) {
 		super(config);
 
-		// with 512ko/chunk it represents 256Mo of backpressure allowed by stream
+		// with 512ko/chunk it represents almost 2Go of backpressure allowed by stream
 		this.#maxStackedBuffers = config.maxStackedBuffers || 4096;
 		this.#uwsResponse = uwsResponse;
 
@@ -84,7 +92,7 @@ class UWSBodyStream extends Readable{
 	}
 
 	/**
-	 * Try to end the current stream. Will abort if the sending queue is not empty.
+	 * Try to end the current stream. Will only close if the sending queue is empty.
 	 */
 	#tryEnd(){
 		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
@@ -104,6 +112,7 @@ class UWSBodyStream extends Readable{
 			this.#sendingQueue.shift();
 		}
 
+		// Close if no data remains to stream.
 		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
 	}
 

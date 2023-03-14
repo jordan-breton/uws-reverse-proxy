@@ -14,10 +14,9 @@ const TextDecoder  = new (require('util').TextDecoder)();
  */
 
 /**
- * @private
- *
  * Decode a uWebSockets.js request into a convenient object.
  *
+ * @private
  * @param {UWSResponse} uwsResponse For whatever reason, some info can only be found in the response object.
  * @param {UWSRequest} uwsRequest The request object we want to decode
  * @return {UWSDecodedRequest}
@@ -47,10 +46,9 @@ function decodeRequest(uwsResponse, uwsRequest){
 }
 
 /**
- * @private
- *
  * Write the given headers to the provided uWebSockets.js response object.
  *
+ * @private
  * @param {UWSResponse} uwsResponse
  * @param {Object.<string, string|string[]>} headers
  */

@@ -1,9 +1,8 @@
-/**
- * @private
- *
+/** *
  * Write the readStream into the uWebSockets.js response object, taking backpressure into consideration.
  * @param {UWSResponse} uwsResponse
  * @param {Readable} readStream
+ * @private
  */
 function streamToUWSResponse(
 	uwsResponse,

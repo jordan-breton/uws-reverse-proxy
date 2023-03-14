@@ -2,21 +2,20 @@ const { Readable } = require('stream');
 const { Buffer } = require('buffer');
 
 /**
- * @private
- *
  * @typedef UWSBodyStreamConfig
  * @property {int} [maxStackedBuffers=4096] Basically, a chunk size will be 500ko on average.
  *                                          this limit is huge by default (4096 * 500ko ~= 2Go).
  *                                          The fact is that uWebSockets.js receive faster than http.client
  *                                          can send, and if this number is too low, the request will be aborted
  *                                          to avoid congestions.
+ * @private
  */
 
-/**
- * @private
- *
+/** *
  * Translate a uWebSockets.js body data stream into a Readable stream, taking backpressure
  * into consideration.
+ *
+ * @private
  */
 class UWSBodyStream extends Readable{
 	#uwsResponse;

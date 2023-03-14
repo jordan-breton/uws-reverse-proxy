@@ -8,9 +8,9 @@ Tested with:
 - uWebSockets.js v20.10.0
 - NodeJS v18.0.0
 
-\[\*\]: This package do not even depends on `uWebSockets.js` to not force any version usage, see in examples below.
+\*: This package do not even depends on `uWebSockets.js` to not force any version usage, see in examples below.
 
-## How does it works?
+## How does it work?
 
 It basically use `uWebSockets.js` as a naive proxy for all non-websocket trafic and forward it to your
 `node:http` based module/backend/application.
@@ -77,7 +77,9 @@ yarn add github:jordan-breton/uws-compat-layer#v2.0.0
 ## Usage
 
 This section describe some usage scenario. You can even see them in action in the 
-[examples repository](https://github.com/jordan-breton/uws-compat-layer-examples)
+[examples repository](https://github.com/jordan-breton/uws-compat-layer-examples).
+
+To see all available options, check the [code API documentation](/api-doc.md).
 
 ### Basic
 

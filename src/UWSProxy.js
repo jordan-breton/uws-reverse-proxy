@@ -17,15 +17,15 @@ const UWSBodyStream = require("./streams/UWSBodyStream");
 // region Private declarations
 
 /**
- * @private
  * Used as node:http.Server listen callback if no one is provided.
+ * @private
  */
 function noop(){}
 
 /**
- * @private
  * List of keys in uWebSocket config object that indicates that our server is using SSL encryption.
  * @type {string[]}
+ * @private
  */
 const UWS_SSL_KEYS = [
 	'key_file_name',
@@ -33,12 +33,12 @@ const UWS_SSL_KEYS = [
 ];
 
 /**
- * @private
  * Both symbols are used to ensure a configuration object have been created by the right
  * generator/config checker.
  *
  * This ensures the configuration is right and avoid us the hassle to check the configuration format
  * twice.
+ * @private
  */
 const uwsConfigSymbol = Symbol('uwsConfig'),
 	  httpConfigSymbol = Symbol('httpConfig');
@@ -65,28 +65,38 @@ const uwsConfigSymbol = Symbol('uwsConfig'),
  */
 
 /**
+ * uWebSockets.js
+ * @see [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js/)
+ * @typedef {import("uWebSockets.js")} UWS
  * @private
- * @typedef {typeof import("uWebSockets.js")} UWS
  */
 
 /**
+ * uWebSockets.js TemplatedApp
+ * @øee [TemplatedApp Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html)
+ * @typedef {import("uWebSockets.js").TemplatedApp} UWSTemplatedApp
  * @private
- * @typedef {typeof import("uWebSockets.js").TemplatedApp} UWSTemplatedApp
  */
 
 /**
+ * uWebSockets.js AppOptions
+ * @see [AppOptions Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/AppOptions.html)
+ * @typedef {import("uWebSockets.js").AppOptions} UWSAppOptions
  * @private
- * @typedef {typeof import("uWebSockets.js").AppOptions} UWSAppOptions
  */
 
 /**
+ * uWebSockets.js HTTPRequest
+ * @see [HttpRequest Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/HttpRequest.html)
+ * @typedef {import("uWebSockets.js").HttpRequest} UWSRequest
  * @private
- * @typedef {typeof import("uWebSockets.js").HttpRequest} UWSRequest
  */
 
 /**
+ * uWebSockets.js HttpResponse
+ * @see [HttpResponse Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/HttpResponse.html)
+ * @typedef {import("uWebSockets.js").HttpResponse} UWSResponse
  * @private
- * @typedef {typeof import("uWebSockets.js").HttpResponse} UWSResponse
  */
 
 /**
@@ -344,12 +354,7 @@ class UWSProxy {
 	 * A shallow copy of the uWebSocket configuration.
 	 *
 	 * Note that the `config` object is the raw object passed as a parameter.
-	 * @return {{
-	 *      server,
-	 *      port: int,
-	 *      config: Object,
-	 *      ssl: boolean
-	 * }}
+	 * @return {UWSProxyUWSConfig}
 	 */
 	get uws(){
 		const {
@@ -371,12 +376,7 @@ class UWSProxy {
 	 * A shallow copy of the http configuration
 	 *
 	 * Note that the `config` object is the raw object passed as a parameter.
-	 * @return {{
-	 *     config: Object,
-	 *     host: string,
-	 *     port: int,
-	 *     server: http.Server
-	 * }}
+	 * @return {UWSProxyHTTPConfig}
 	 */
 	get http(){
 		const {

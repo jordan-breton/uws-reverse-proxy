@@ -167,7 +167,7 @@ class UWSProxy {
 			throw new Error('First argument must be an instance of node:http.Server');
 		}
 
-		if (config.on.listen && typeof listen !== 'function') throw new Error(
+		if (config?.on.listen && typeof listen !== 'function') throw new Error(
 			'If specified, on.listen must be a function !'
 		);
 

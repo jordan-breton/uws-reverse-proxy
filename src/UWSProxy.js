@@ -15,6 +15,7 @@ const UWSBodyStream = require("./streams/UWSBodyStream");
 // endregion
 
 // region Private declarations
+
 /**
  * @private
  * Used as node:http.Server listen callback if no one is provided.
@@ -214,15 +215,6 @@ class UWSProxy {
 			config = {}
 		} = opts || {};
 
-		if(!port){
-			throw new Error('opts.ports must be specified!');
-		}else if(!opts.port && !quiet){
-			console.warn(
-				"[WARN] UWSProxy: No port was specified in opts."
-				+ " Default port used is 443."
-			)
-		}
-
 		let uwsServer;
 
 		if(!App && !SSLApp){
@@ -249,6 +241,15 @@ class UWSProxy {
 
 			if(ssl) uwsServer = SSLApp(config);
 			else uwsServer = App(config);
+		}
+
+		if(!port || !Number.isInteger(port) || port < 2 || port > 49151){
+			throw new Error('opts.ports must be a valid integer and a valid port number!');
+		}else if(!opts.port && !quiet && port === 443 && !ssl){
+			console.warn(
+				"[WARN] UWSProxy: No port was specified in opts."
+				+ " Default port used is 443."
+			)
 		}
 
 		return {
@@ -350,7 +351,7 @@ class UWSProxy {
 	 *      ssl: boolean
 	 * }}
 	 */
-	get uwsConfig(){
+	get uws(){
 		const {
 			config,
 			server,
@@ -377,7 +378,7 @@ class UWSProxy {
 	 *     server: http.Server
 	 * }}
 	 */
-	get httpConfig(){
+	get http(){
 		const {
 			config,
 			host,

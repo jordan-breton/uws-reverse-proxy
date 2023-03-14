@@ -511,7 +511,7 @@ app.init().then(() => {
 ## TODO
 
 - [X]  PoC (> v1.0.0)
-- [X]  Refactoring + Clean & stable implementation (> v2.0.0)
+- [X]  Refactoring + Clean & stable implementation (> v2.0.1)
   - [X]  Flexible configuration
   - [X]  Config validation
   - [X]  Config warnings

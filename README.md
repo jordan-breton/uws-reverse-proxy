@@ -65,13 +65,13 @@ sequenceDiagram
 With npm:
 
 ```bash
-npm install github:jordan-breton/uws-compat-layer#v2.0.0
+npm install github:jordan-breton/uws-compat-layer#v2.0.1
 ```
 
 With yarn:
 
 ```bash
-yarn add github:jordan-breton/uws-compat-layer#v2.0.0
+yarn add github:jordan-breton/uws-compat-layer#v2.0.1
 ```
 
 ## Usage

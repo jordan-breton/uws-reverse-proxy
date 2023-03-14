@@ -1,6 +1,6 @@
 {
   "name": "uws-compat-layer",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Compatibility layer for uWebSockets.js. Enable use of uWebSockets.js and other node:http compatible library (as express) on the same port.",
   "keywords": [
 	  "uWebSockets.js",

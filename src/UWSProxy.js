@@ -458,6 +458,11 @@ class UWSProxy {
 
 		const abortController = new AbortController();
 
+		// We don't need those header after the proxy, as we only process one
+		// request at a time, and we want the proxy to manage the connection itself.
+		delete request.headers['keep-alive'];
+		delete request.headers['connection'];
+
 		// Forward the request to the http server
 		const forwardedRequest = http.request({
 			hostname: privateHost,
@@ -474,8 +479,12 @@ class UWSProxy {
 			const headers = Object.assign({}, httpResponse.headers);
 
 			// uWebSocket auto-append content-length. If we let the one set up by
-			// express, the browser will error with code ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH
+			// node:http, the browser will error with code ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH
 			delete headers['content-length'];
+
+			// If node:http append something, we must ignore it.
+			delete headers['keep-alive'];
+			delete headers['connection'];
 
 			uwsResponse.cork(() => {
 				try{

@@ -8,84 +8,37 @@ function streamToUWSResponse(
 	uwsResponse,
 	readStream
 ){
-	// We do not know the length beforehand, so we must use a flag to end the response when the
-	// read stream is closed.
-	let shouldEnd = false;
-
-	// Keep a count of read/write to be able to know when to close, when shouldEnd is true.
-	// Because of backpressure, we could have shouldEnd to true because the readStream have been consumed,
-	// but bytesRead > bytesWritten
-	//
-	// We don't want to randomly truncate our responses :)
-	let bytesRead = 0;
-	let bytesWritten = 0;
-
-	// Will call response.end() if the readStream is closed AND all read bytes have been written.
-	const end = () => {
-		if(shouldEnd && bytesWritten === bytesRead){
-			try{
-				uwsResponse.end();
-			}catch(err){
-				// Nothing to do, we just ignore it. We want it closed anyway.
-			}
-		}
-	}
-
 	const destroyStream = (err) => {
 		return !readStream.destroyed && readStream.destroy(err);
 	}
 
-	uwsResponse.onAborted(() => destroyStream(new Error('Aborted')));
+	uwsResponse.onAborted(() => destroyStream(new Error('Response aborted')));
 
-	readStream.on('data', async chunk => {
-		bytesRead += chunk.byteLength;
-
+	readStream.on('close', () => {
 		try{
-			const arrayBufferChunk = chunk.buffer.slice(
-				chunk.byteOffset,
-				chunk.byteOffset + chunk.byteLength
-			);
+			// No matter what happen, once the ReadStream have been closed, we must end the response.
+			uwsResponse.end();
+		}catch(err){}
+	});
+	readStream.on('data', chunk => {
+		try{
+			const ok = uwsResponse.write(chunk);
+			if(!ok){
+				// We have backpressure, we pause until uWebSockets.js tell us that the response
+				// is writable.
+				readStream.pause();
 
-			uwsResponse.cork(() => {
-				const ok = uwsResponse.write(arrayBufferChunk);
-				if(!ok){
-					// We have backpressure
-					readStream.pause();
-
-					// We listen for backpressure drain
-					uwsResponse.onWritable(function (){
-						// Bytes have been written by uWebSockets, we can resume
-						bytesWritten += chunk.byteLength;
-						readStream.resume();
-
-						// Close if no data remains to read
-						end();
-
-						// According to uWebSockets.js doc, writing nothing is still a success.
-						return true;
-					});
-				}else{
-					// It has been successfully written, we can count it.
-					bytesWritten += chunk.byteLength;
-				}
-			})
-
-			// Close if no data remains to read.
-			end();
+				uwsResponse.onWritable(() => {
+					// Chunk sent, backpressure is gone, we can resume :)
+					readStream.resume();
+					return true;
+				});
+			}
 		}catch(err){
 			//certainly aborted
 			destroyStream(err);
 		}
 	});
-
-	readStream.on('error', err => destroyStream(err));
-	readStream.on('close', () => {
-		shouldEnd = true;
-		end();
-	});
-	readStream.on('end', destroyStream);
-
-	readStream.resume();
 }
 
 module.exports = streamToUWSResponse;

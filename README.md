@@ -65,13 +65,13 @@ sequenceDiagram
 With npm:
 
 ```bash
-npm install github:jordan-breton/uws-compat-layer#v2.0.1
+npm install github:jordan-breton/uws-compat-layer#v2.0.2
 ```
 
 With yarn:
 
 ```bash
-yarn add github:jordan-breton/uws-compat-layer#v2.0.1
+yarn add github:jordan-breton/uws-compat-layer#v2.0.2
 ```
 
 ## Usage
@@ -511,7 +511,7 @@ app.init().then(() => {
 ## TODO
 
 - [X]  PoC (> v1.0.0)
-- [X]  Refactoring + Clean & stable implementation (> v2.0.1)
+- [X]  Refactoring + Clean & stable implementation (> v2.0.2)
   - [X]  Flexible configuration
   - [X]  Config validation
   - [X]  Config warnings

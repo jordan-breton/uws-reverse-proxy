@@ -166,7 +166,6 @@ const proxy = new UWSProxy(
 		{ port } // Must be specified to avoid a warning
 	),
 	createHTTPConfig(
-		httpServer,
 		{
 			port: httpPort, 
 			host: httpHost

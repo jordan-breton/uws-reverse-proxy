@@ -17,6 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          always-auth: true
           registry-url: https://registry.npmjs.org/
           node-version: '18'
 

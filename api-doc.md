@@ -2,13 +2,13 @@
 
 <a href="#UWSProxy">UWSProxy</a>
 
-<p>A proxy that allows uWebSockets.js to be compatible with any node:http based server by proxying requests</p>
+<p>A proxy allowing uWebSockets.js to be compatible with any http server by proxying http requests</p>
 
 <a name="UWSProxy"></a>
 
 ## UWSProxy
 
-<p>A proxy that allows uWebSockets.js to be compatible with any node:http based server by proxying requests</p>
+<p>A proxy allowing uWebSockets.js to be compatible with any http server by proxying http requests</p>
 
 **Kind**: global class
 
@@ -40,10 +40,7 @@
 
 **Kind**: static method of [`UWSProxy`](#UWSProxy)
 
-**Summary**: <p>Create a valid httpConfiguration</p>.  
-
-**Important**: It immediately spawns an HTTP server if no one was provided, and immediately
-           call node:http.Server.listen if the http.Server.listening is false.
+**Summary**: <p>Create a valid httpConfiguration.</p>
 
 | Param     | Type                                                  | Default          | Description                  |
 |-----------|-------------------------------------------------------|------------------|------------------------------|
@@ -57,7 +54,7 @@
 
 **Kind**: static method of [`UWSProxy`](#UWSProxy)
 
-**Summary**: <p>Creates a valid uwsConfiguration</p>.  
+**Summary**: <p>Creates a valid uwsConfiguration.</p> 
 
 | Param       | Type                                                       |
 |-------------|------------------------------------------------------------|
@@ -108,12 +105,12 @@
 
 **Properties**
 
-| Name     | Type                                                  | Description                                                  |
-|----------|-------------------------------------------------------|--------------------------------------------------------------|
-| config   | [`UWSProxyHTTPConfigOpts`](#UWSProxyHTTPConfigOpts)   | <p>Raw configuration passed to UWSProxy.createHTTPConfig</p> |
-| protocol | 'http' &#124; 'https'                                 | <p>Listening port</p>                                        |
-| port     | int                                                   | <p>Listening port</p>                                        |
-| host     | string                                                | <p>Listening host</p>                                        |
+| Name     | Type                                                 | Description                                                  |
+|----------|------------------------------------------------------|--------------------------------------------------------------|
+| config   | [`UWSProxyHTTPConfigOpts`](#UWSProxyHTTPConfigOpts)  | <p>Raw configuration passed to UWSProxy.createHTTPConfig</p> |
+| protocol | `http` &#124; `https`                                | <p>HTTP protocol</p>                                         |
+| port     | int                                                  | <p>Listening port</p>                                        |
+| host     | string                                               | <p>HTTP host</p>                                             |
 
 <a name="UWSProxyHTTPConfigOpts"></a>
 
@@ -123,12 +120,12 @@
 
 **Properties**
 
-| Name      | Type                  | Default                                          | Description                                                   |
-|-----------|-----------------------|--------------------------------------------------|---------------------------------------------------------------|
-| protocol  | 'http' &#124; 'https' | <code>&#x27;http&#x27;</code>                    | <p>Server protocol</p>                                        |
-| port      | int                   | <code>35974</code>                               | <p>Private port the HTTP server must listen to</p>            |
-| host      | string                | <code>&quot;\&quot;127.0.0.1\&quot;&quot;</code> | <p>HTTP host listening. Default is the loop-back address.</p> |
-| quiet     | boolean               | <code>false</code>                               | <p>Disable configuration warning printing</p>                 |
+| Name      | Type                  | Default                              | Description                                          |
+|-----------|-----------------------|--------------------------------------|------------------------------------------------------|
+| protocol  | 'http' &#124; 'https' | <code>&#x27;http&#x27;</code>        | <p>Server protocol</p>                               |
+| port      | int                   | <code>35974</code>                   | <p>Private port the HTTP server must listen to</p>   |
+| host      | string                | <code>&quot;127.0.0.1&quot;</code>   | <p>HTTP host. Default is the loop-back address.</p>  |
+| quiet     | boolean               | <code>false</code>                   | <p>Disable configuration warning printing</p>        |
 
 <a name="UWSProxyOpts"></a>
 
@@ -138,14 +135,14 @@
 
 **Properties**
 
-| Name                            | Type                                                 | Default           | Description                                                                                     |
-|---------------------------------|------------------------------------------------------|-------------------|-------------------------------------------------------------------------------------------------|
-| backpressure                    | Object                                               | <code>{}</code>   |                                                                                                 |
-| backpressure.maxStackedBuffers  | int                                                  | <code>4096</code> |                                                                                                 |
-| headers                         | Object.&lt;string, (stringArray.&lt;string&gt;)&gt;  | <code>{}</code>   | <p>Additional headers always appended to the proxy request (not on the client's response)</p>   |
-| routes                          | Object.&lt;string, string&gt;                        |                   | <p>Routes we want the proxy request handlers to listen on</p>                                   |
-| on                              | Object.&lt;string, function()&gt;                    | <code>{}</code>   | <p>Collection of optional callbacks</p>                                                         |
-| on.error                        | function &#124; null                                 | <code></code>     | <p>Called when a proxy request fails for whatever reason.</p>                                   |
+| Name                            | Type                                                 | Default           | Description                                                                                   |
+|---------------------------------|------------------------------------------------------|-------------------|-----------------------------------------------------------------------------------------------|
+| backpressure                    | Object                                               | <code>{}</code>   |                                                                                               |
+| backpressure.maxStackedBuffers  | int                                                  | <code>4096</code> |                                                                                               |
+| headers                         | Object.&lt;string, (stringArray.&lt;string&gt;)&gt;  | <code>{}</code>   | <p>Additional headers always appended to the proxy request (not on the client's response)</p> |
+| routes                          | Object.&lt;string, string&gt;                        |                   | <p>Routes we want the proxy request handlers to listen to</p>                                 |
+| on                              | Object.&lt;string, function()&gt;                    | <code>{}</code>   | <p>Collection of optional callbacks</p>                                                       |
+| on.error                        | function &#124; null                                 | <code>''</code>   | <p>Called when a proxy request fails for whatever reason.</p>                                 |
 
 <a name="UWSProxyUWSConfig"></a>
 
@@ -170,12 +167,12 @@
 
 **Properties**
 
-| Name   | Type                              | Default            | Description                                                                                                                                          |
-|--------|-----------------------------------|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ssl    | boolean &#124; null               | <code></code>      | <p>If true, inform the Proxy that trafic is encrypted (it matters to set proxy Headers and create (if not provided) an SSLApp instead of an App)</p> |
-| port   | int                               | <code>443</code>   | <p>Public port uWebSocket server is listening to</p>                                                                                                 |
-| quiet  | boolean                           | <code>false</code> | <p>Disable configuration warning printing</p>                                                                                                        |
-| config | [`UWSAppOptions`](#UWSAppOptions) | <code>{}</code>    | <p>See uWebSockets.js AppOptions</p>                                                                                                                 |
+| Name   | Type                                                                                                 | Default            | Description                                                                                                                                          |
+|--------|------------------------------------------------------------------------------------------------------|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ssl    | boolean &#124; null                                                                                  | <code></code>      | <p>If true, inform the Proxy that trafic is encrypted (it matters to set proxy Headers and create (if not provided) an SSLApp instead of an App)</p> |
+| port   | int                                                                                                  | <code>443</code>   | <p>Public port uWebSocket server is listening to</p>                                                                                                 |
+| quiet  | boolean                                                                                              | <code>false</code> | <p>Disable configuration warning printing</p>                                                                                                        |
+| config | [`UWSAppOptions`](https://unetworking.github.io/uWebSockets.js/generated/interfaces/AppOptions.html) | <code>{}</code>    | <p>See uWebSockets.js AppOptions</p>                                                                                                                 |
 
 ## Typedefs
 

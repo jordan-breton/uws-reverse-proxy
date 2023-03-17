@@ -32,16 +32,16 @@ const UWS_SSL_KEYS = [
  * @typedef UWSProxyHTTPConfigOpts
  * @property {'http'|'https'} [protocol='http'] Server protocol
  * @property {int}            [port=35974] Private port the HTTP server must listen to
- * @property {string}         [host="127.0.0.1"] HTTP host listening. Default is the loop-back address.
+ * @property {string}         [host="127.0.0.1"] HTTP host. Default is the loop-back address.
  * @property {boolean}        [quiet=false] Disable configuration warning printing
  */
 
 /**
  * @typedef UWSProxyHTTPConfig
  * @property {UWSProxyHTTPConfigOpts} config Raw configuration passed to UWSProxy.createHTTPConfig
- * @property {'http'|'https'} protocol              Listening port
- * @property {int}            port              Listening port
- * @property {string}         host              Listening host
+ * @property {'http'|'https'} protocol HTTP protocol
+ * @property {int}            port     Listening port
+ * @property {string}         host     HTTP host
  */
 
 /**
@@ -105,7 +105,7 @@ const UWS_SSL_KEYS = [
  *                                                          the proxy request (not on the client's
  *                                                          response)
  * @property {Object<string, string>} [routes] Routes we want the proxy request handlers to listen
- *                                             on
+ *                                             to
  * @property {Object<string, function>} [on={}] Collection of optional callbacks
  * @property {function|null} [on.error=null] Called when a proxy request fails for whatever reason.
  */
@@ -113,7 +113,7 @@ const UWS_SSL_KEYS = [
 // endregion
 
 /**
- * A proxy that allows uWebSockets.js to be compatible with any node:http based server by proxying requests
+ * A proxy that allows uWebSockets.js to be compatible with any http server by proxying http requests
  */
 class UWSProxy {
 
@@ -121,8 +121,7 @@ class UWSProxy {
 
 	/**
 	 * Create a valid httpConfiguration
-	 * @important It immediately spawns an HTTP server if no one was provided, and immediately
-	 *            call node:http.Server.listen if the http.Server.listening is false.
+	 *
 	 * @param {UWSProxyHTTPConfigOpts}   [config={}]  Configuration object
 	 * @return {UWSProxyHTTPConfig}
 	 */

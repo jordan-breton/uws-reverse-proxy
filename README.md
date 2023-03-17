@@ -1,7 +1,7 @@
-# uws-compat-layer
+# uws-reverse-proxy
 
-This project is a **easy-to-use 0-dependency**\* compatibility layer for `uWebSockets.js`. It enables use of `uWebSockets.js` and other `node:http`
-compatible libraries (as [express](https://www.npmjs.com/package/express)) on **the same port**.
+This project is a **easy-to-use 0-dependency**\* reverse proxy based on `uWebSockets.js`. It enables use of `uWebSockets.js` and any `http`
+server (as [express](https://www.npmjs.com/package/express)) on **the same port**.
 
 Tested with:
 
@@ -12,44 +12,45 @@ Tested with:
 
 ## How does it work?
 
-It basically use `uWebSockets.js` as a naive proxy for all non-websocket trafic and forward it to your
-`node:http` based module/backend/application.
+It basically use `uWebSockets.js` as a reverse proxy for all non-websocket trafic and forward it to any
+`http` server.
 
 Then it will send the response back to the client without modification.
-
-**Keep in mind that this package is not aimed to be a generic proxy based on `uWebSockets.js`.**
 
 ## Why? For what use case?
 
 Don't use this package if you don't **really** need it.
 
-You pretty much always want your NodeJS app available on only one port (**443**) for it to be accessible in restrictive **NATs**,
-but you won't necessarily have to use install your server in a **restricted production environment**.
+You pretty much always want your NodeJS app available on only one port (**443**) for it to be accessible in restrictive **NATs**.
 
 This project is aimed to provide a solution in **restricted server environments** such
-as some cloud platforms like Heroku, where you can't set up a real proxy in front of your NodeJS application.
+as some cloud platforms like Heroku, where you can't set up a proxy like **Nginx** or **Apache** in front of your NodeJS application,
+and where you often have only one public port available.
 
 If you're not in a similar use case, just set up an **Nginx** or **Apache** proxy that will filter the requests to redirect them on
-the good **private** port.
+the good **private** port, they will be more efficient and flexible.
 
-If your server have to work in **restricted server environment** or if for whatever reason you want `uWebSockets.js` 
+Conversely, if your server have to work in **restricted server environment** or if for whatever reason you want `uWebSockets.js` 
 to handle all requests without standing behind a proxy, then this package is made for you :)
 
 In the case of **express** you _could_ use a package like [http-proxy-middleware](https://www.npmjs.com/package/http-proxy-middleware)
-to do the opposite (using `express` as a proxy to forward requests to `uWebSockets.js`), but this doesn't seem to work at the time
+to do the opposite (using `express` as a reverse-proxy to forward requests to `uWebSockets.js`), but this doesn't seem to work at the time
 I'm writing this, and **it defeats the main advantage of `uWebSockets.js`**: its astonishing performances.
 
 ## Important note about SSL
 
-The `http` part of your NodeJS application will be used over `http`, not `https` because `uWebSockets.js` will handle the https part, and since
-you're in a scenario where you want both `websockets` server and `http` server in the same app, it would not be very efficient to use SSL to
-secure what only happen locally.
+If `uWebSockets.js` and your `http` servers are on the same machine, you should not create an HTTPS server,
+as TLS will add a useless overhead in a scenario like this:
 
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant UWS as uWebSockets.js Proxy
+    box Public
+    participant UWS as uWebSockets.js Reverse Proxy
+    end
+    box Private
     participant N as Node:http
+    end
     C->>UWS: HTTPS request
     activate UWS
     UWS->>N: HTTP request
@@ -65,33 +66,34 @@ sequenceDiagram
 With npm:
 
 ```bash
-npm install github:jordan-breton/uws-compat-layer#v2.0.2
+npm install github:jordan-breton/uws-reverse-proxy#v2.0.2
 ```
 
 With yarn:
 
 ```bash
-yarn add github:jordan-breton/uws-compat-layer#v2.0.2
+yarn add github:jordan-breton/uws-reverse-proxy#v2.0.2
 ```
 
 ## Usage
 
 This section describe some usage scenario. You can even see them in action in the 
-[examples repository](https://github.com/jordan-breton/uws-compat-layer-examples).
+[examples repository](https://github.com/jordan-breton/uws-reverse-proxy-examples).
 
 To see all available options, check the [code API documentation](/api-doc.md).
 
 ### Basic
 
-Simplest use-case: let the proxy create everything on its own, configure your servers afterward.
+Simplest use-case: let the reverse proxy create everything on its own, configure your servers afterward.
 
 ```js
 const uWebSockets = require('uWebSockets.js');
+const http = require('http');
 
 const {
 	UWSProxy,
 	createUWSConfig
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
 
@@ -101,15 +103,20 @@ const proxy = new UWSProxy(
 		{ port }
 	)
 );
-proxy.start();
 
-// Adding a handler to the http server created by the proxy
-proxy.http.server.on('request', (req, res) => { 
+const httpServer = http.createServer((req, res) => {
 	console.log('Incoming request: ', req);
 
 	res.writeHead(200);
 	res.end('Hello world :)');
 });
+httpServer.listen(
+    proxy.http.port,
+    proxy.http.host,
+	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
+);
+
+proxy.start();
 
 // Configuring the uWebSockets.js app created by the proxy
 
@@ -129,88 +136,19 @@ proxy.uws.server.listen('0.0.0.0', port, listening => {
 });
 ```
 
-**Note:** You can add a callback for the `http` listening event:
-
-```js
-const uWebSockets = require('uWebSockets.js');
-
-const {
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig,
-} = require('uws-compat-layer');
-
-const port = process.env.PORT || 80;
-
-const proxy = new UWSProxy(
-	createUWSConfig(
-		uWebSockets,
-		{ port }
-	),
-	createHTTPConfig(
-		null,
-		{
-			on: {
-				listen: () => console.log('HTTP server listening on private port 127.0.0.1:35794')
-			}
-		}
-	)
-);
-```
-
-Second use case: providing an already created `http` server, that is **not listening to any port yet**:
-
-```js
-const http = require('http');
-const uWebSocket = require('uWebSockets.js');
-
-const {
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig 
-} = require('uws-compat-layer');
-
-const port = process.env.PORT || 80;
-
-const httpServer =  http.createServer(/*...*/);
-
-const proxy = new UWSProxy(
-	createUWSConfig(
-		uWebSocket,
-		{ port }
-	),
-	createHTTPConfig(
-		httpServer
-	)
-);
-proxy.start();
-
-proxy.uws.server.ws({
-	upgrade : () => { /*...*/ },
-	/* ... */
-});
-
-proxy.uws.server.listen('0.0.0.0', port, listening => {
-	if(listening){
-		console.log(`uWebSockets.js listening on port 0.0.0.0:${port}`);
-	}else{
-		console.error(`Unable to listen on port 0.0.0.0:${port}!`);
-	}
-});
-```
-
-Third use case: providing already created `http` and `uWebSocket.js` servers that are both listening:
+Second use case: providing already created and listening `uWebSocket.js` server:
 
 ```js
 const http = require('http');
 const { App } = require('uWebSockets.js');
 
 const port = process.env.PORT || 80;
-const privatePort = process.env.PRIVATE_PORT || 35794;
+const httpPort = process.env.HTTP_PORT || 35794;
+const httpHost = process.env.HTTP_HOST || '127.0.0.1';
 
 // Let's imagine that all the setup happen there, including listening
 const httpServer =  http.createServer(/*...*/);
-httpServer.listen(privatePort, '127.0.0.1', () => console.log(`HTTP server listening on port 127.0.0.1:${privatePort}`));
+httpServer.listen(httpPort, httpHost, () => console.log(`HTTP server listening at http://${httpHost}:${httpPort}`));
 
 const uwsServer = App();
 uwsServer.ws({/* ... */});
@@ -220,7 +158,7 @@ const {
 	UWSProxy,
 	createUWSConfig,
 	createHTTPConfig 
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const proxy = new UWSProxy(
 	createUWSConfig(
@@ -229,7 +167,10 @@ const proxy = new UWSProxy(
 	),
 	createHTTPConfig(
 		httpServer,
-		{ port: privatePort } // Must be specified to avoid a warning
+		{
+			port: httpPort, 
+		    host: httpHost
+		}
 	)
 );
 proxy.start();
@@ -237,17 +178,12 @@ proxy.start();
 
 The warning is there as a reminder especially if you use different ports than the default ones.
 
-If you don't want (or can't) provide the `port` or the `privatePort`, you can silence the warning
-using the `quiet` option:
+If you don't want (or can't) provide the `port`, you can silence the warning using the `quiet` option:
 
 ```js
 const proxy = new UWSProxy(
 	createUWSConfig(
 		uwsServer,
-		{ quiet: true } // Must be specified to avoid a warning
-	),
-	createHTTPConfig(
-		httpServer,
 		{ quiet: true } // Must be specified to avoid a warning
 	)
 );
@@ -262,7 +198,7 @@ Given the above examples, just change the options passed to `createUWSConfig`.
 
 ```js
 const uWebSocket = require('uWebSockets.js');
-const { createUWSConfig } = require('uws-compat-layer');
+const { createUWSConfig } = require('uws-reverse-proxy');
 
 createUWSConfig(
 	uWebSocket,
@@ -279,7 +215,7 @@ createUWSConfig(
 
 ```js
 const { SSLApp } = require('uWebSockets.js');
-const { createUWSConfig } = require('uws-compat-layer');
+const { createUWSConfig } = require('uws-reverse-proxy');
 
 const uwsServer = SSLApp({
 	key_file_name: 'misc/key.pem',
@@ -305,26 +241,22 @@ const {
 	UWSProxy,
     createUWSConfig,
     createHTTPConfig
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
-
-const expressApp = express();
-const httpServer = http.createServer(expressApp);
 
 const proxy = new UWSProxy(
 	createUWSConfig(
 		uWebSockets,
 		{ port }
-    ),
-    createHTTPConfig(
-		httpServer,
-	    {
-		    on: {
-			    listen: () => console.log('Express server listening on private port 127.0.0.1:35794')
-		    }
-	    }
-    )
+	)
+);
+
+const expressApp = express();
+expressApp.listen(
+	proxy.http.port,
+	proxy.http.host,
+	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 );
 
 proxy.uws.server.ws({
@@ -352,26 +284,23 @@ const {
 	UWSProxy,
     createUWSConfig,
     createHTTPConfig
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
-
-const koaApp = new Koa();
-const httpServer = http.createServer(koa.callback());
 
 const proxy = new UWSProxy(
 	createUWSConfig(
 		uWebSockets,
 		{ port }
-    ),
-    createHTTPConfig(
-		httpServer,
-	    {
-		    on: {
-			    listen: () => console.log('Express server listening on private port 127.0.0.1:35794')
-		    }
-	    }
     )
+);
+
+const koaApp = new Koa();
+const httpServer = http.createServer(koa.callback());
+httpServer.listen(
+	proxy.http.port,
+	proxy.http.host,
+	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 );
 
 proxy.uws.server.ws({
@@ -398,11 +327,11 @@ const {
 	UWSProxy,
     createUWSConfig,
     createHTTPConfig
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
 
-let httpServer
+let httpServer;
 
 const serverFactory = (handler, opts) => {
 	httpServer = http.createServer((req, res) => {
@@ -423,15 +352,13 @@ fastify.ready(() => {
 		createUWSConfig(
 			uWebSockets,
 			{ port }
-		),
-		createHTTPConfig(
-			httpServer,
-			{
-				on: {
-					listen: () => console.log('Express server listening on private port 127.0.0.1:35794')
-				}
-			}
 		)
+	);
+
+	httpServer.listen(
+		proxy.http.port,
+		proxy.http.host,
+		() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 	);
 
 	proxy.uws.server.ws({
@@ -461,7 +388,7 @@ const {
 	UWSProxy,
 	createUWSConfig,
 	createHTTPConfig
-} = require('uws-compat-layer');
+} = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
 
@@ -482,14 +409,12 @@ app.init().then(() => {
 			uWebSockets,
 			{ port }
 		),
-		createHTTPConfig(
-			httpServer,
-			{
-				on: {
-					listen: () => console.log('Express server listening on private port 127.0.0.1:35794')
-				}
-			}
-		)
+	);
+
+	httpServer.listen(
+		proxy.http.port,
+		proxy.http.host,
+		() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 	);
 
 	proxy.uws.server.ws({
@@ -510,21 +435,25 @@ app.init().then(() => {
 
 ## TODO
 
-- [X]  PoC (> v1.0.0)
-- [X]  Refactoring + Clean & stable implementation (> v2.0.2)
-  - [X]  Flexible configuration
-  - [X]  Config validation
-  - [X]  Config warnings
-  - [X]  Configurable backpressure threshold
-  - [X]  Code comments & JSDOC
-- [ ]  A demo repository.
-- [ ]  Documentation
-- [ ]  Better error management
-  - [ ]  Allow to answer to errors (like backpressure) with proper HTTP formatted response instead of
-    shutting down the connection like a savage.
-- [ ]  Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)
-- [ ]  More flexibility in requests routing through proxy (add more control options, like a pre-handler to allow or not
+- [X] PoC (> v1.0.0)
+- [X] Refactoring + Clean & stable implementation (> v2.0.2)
+  - [X] Flexible configuration
+  - [X] Config validation
+  - [X] Config warnings
+  - [X] Configurable backpressure threshold
+  - [X] Code comments & JSDOC
+- [x] Documentation
+  - [x] Code API
+  - [x] README
+  - [ ] A demo repository.
+- [ ] Better error management
+  - [ ] Allow to answer to stream errors that are happening before the client response is written 
+        with proper HTTP formatted response instead of shutting down the connection like a savage.
+- [ ] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
+      of `write`to avoid adding `Transfer-Encoding: chunked` to every request.
+- [ ] Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)
+- [ ] More flexibility in requests routing through proxy (add more control options, like a pre-handler to allow or not
   forwarding based on custom logic.)
-- [ ]  Test uWebSockets.js version agnosticity for all uWebSockets.js versions.
-  - [ ]  Support backward compatibility
-- [ ]  Debugging mode with console logging
+- [ ] Test uWebSockets.js version agnosticity for all uWebSockets.js versions.
+  - [ ] Support backward compatibility
+- [ ] Debugging mode with console logging

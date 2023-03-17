@@ -1,8 +1,7 @@
 // region Imports
 
-const http         = require("http");
-const https        = require("https");
-const { pipeline } = require("stream");
+const http  = require("http");
+const https = require("https");
 
 const {
 	decodeRequest,
@@ -17,12 +16,6 @@ const UWSBodyStream = require("./streams/UWSBodyStream");
 // region Private declarations
 
 /**
- * Used as node:http.Server listen callback if no one is provided.
- * @private
- */
-function noop(){}
-
-/**
  * List of keys in uWebSocket config object that indicates that our server is using SSL encryption.
  * @type {string[]}
  * @private
@@ -32,36 +25,23 @@ const UWS_SSL_KEYS = [
 	'cert_file_name'
 ];
 
-/**
- * Both symbols are used to ensure a configuration object have been created by the right
- * generator/config checker.
- *
- * This ensures the configuration is right and avoid us the hassle to check the configuration format
- * twice.
- * @private
- */
-const uwsConfigSymbol = Symbol('uwsConfig'),
-	  httpConfigSymbol = Symbol('httpConfig');
-
 // endregion
 // region JSDOC typedefs
 
 /**
  * @typedef UWSProxyHTTPConfigOpts
- * @property {int}      [port=35974]  Private port the HTTP server must listen to
- * @property {string}   [host="127.0.0.1"] HTTP host listening. Default is the loop-back address.
- * @property {boolean}  [quiet=false] Disable configuration warning printing
- * @property {Object}   [on={}]       Event listeners
- * @property {function} [on.listen]   Called when node:http.Server will start listening for incoming
- *                                    connections.
+ * @property {'http'|'https'} [protocol='http'] Server protocol
+ * @property {int}            [port=35974] Private port the HTTP server must listen to
+ * @property {string}         [host="127.0.0.1"] HTTP host listening. Default is the loop-back address.
+ * @property {boolean}        [quiet=false] Disable configuration warning printing
  */
 
 /**
  * @typedef UWSProxyHTTPConfig
  * @property {UWSProxyHTTPConfigOpts} config Raw configuration passed to UWSProxy.createHTTPConfig
- * @property {int}         port              Listening port
- * @property {string}      host              Listening host
- * @property {module:http.Server} server     HTTP server used as proxy target
+ * @property {'http'|'https'} protocol              Listening port
+ * @property {int}            port              Listening port
+ * @property {string}         host              Listening host
  */
 
 /**
@@ -143,44 +123,25 @@ class UWSProxy {
 	 * Create a valid httpConfiguration
 	 * @important It immediately spawns an HTTP server if no one was provided, and immediately
 	 *            call node:http.Server.listen if the http.Server.listening is false.
-	 * @param {module:http.Server}       [httpServer] Will be created if not provided.
 	 * @param {UWSProxyHTTPConfigOpts}   [config={}]  Configuration object
 	 * @return {UWSProxyHTTPConfig}
 	 */
-	static createHTTPConfig(httpServer, config = {}){
+	static createHTTPConfig(config = {}){
 		const {
 			port = 35974,
 			host = '127.0.0.1',
+			protocol = 'http',
 			quiet = false,
-			on: {
-				listen = noop
-			} = {}
 		} = config || {};
 
-		if(httpServer instanceof https.Server){
-			throw new Error('node:https.Server not supported. Please provide a node:http.Server');
-		}
-
-		if(!httpServer){
-			httpServer = http.createServer();
-		}else if(!(httpServer instanceof http.Server)){
-			throw new Error('First argument must be an instance of node:http.Server');
-		}
-
-		if (config?.on?.listen && typeof listen !== 'function') throw new Error(
-			'If specified, on.listen must be a function !'
-		);
-
-		if(!httpServer.listening){
-			httpServer.listen(port, host, listen);
-		}else if(!config.port && !quiet){
+		if(
+			!quiet
+			&& protocol === 'https'
+			&& ['localhost', '127.0.0.1'].includes(host.toLowerCase().trim())
+		){
 			console.warn(
-				'[WARN] UWSProxy: you provided a listening node:http.Server.'
-				+ 'No port was provided through the configuration object. The guessed port is the'
-				+ ' default one (35974).'
-				+ 'Make sure this port is the listening port of the node:http.Server instance you'
-				+ ' provided. (to suppress this warning, specify "config.port" or set'
-				+ ' "config.quiet" to "true")'
+				'[WARN] UWSProxy: you configured the proxy to forward to a local HTTPS server.'
+				+ ' You should consider using an HTTP server, as TLS have an impact on performances.'
 			);
 		}
 
@@ -188,12 +149,7 @@ class UWSProxy {
 			config,
 			host,
 			port,
-			server: httpServer,
-
-			// We want to be able to check if configuration has been constructed through this
-			// function in the constructor. It enforces valid configuration and avoid us to have
-			// to validate it.
-			[httpConfigSymbol]: true
+			protocol
 		};
 	}
 
@@ -266,12 +222,7 @@ class UWSProxy {
 			config,
 			server: uwsServer,
 			ssl,
-			port,
-
-			// We want to be able to check if configuration has been constructed through this
-			// function in the constructor. It enforces valid configuration and avoid us to have
-			// to validate it.
-			[uwsConfigSymbol]: true
+			port
 		}
 	}
 
@@ -305,21 +256,8 @@ class UWSProxy {
 		httpConfig,
 		opts = {}
 	) {
-		if(!uwsConfig[uwsConfigSymbol]){
-			throw new Error(
-				'Untrusted uWebSocket configuration. Please provide a trusted config with'
-				+ ' UWSProxy.createUWSConfig()'
-			);
-		}
-
-		if(!httpConfig){
-			httpConfig = UWSProxy.createHTTPConfig();
-		}else if(!httpConfig[httpConfigSymbol]){
-			throw new Error(
-				'Untrusted http configuration. Please provide a trusted config with'
-				+ ' UWSProxy.createHTTPConfig()'
-			);
-		}
+		if(!uwsConfig) throw new Error('No uWebSockets.js configuration provided!');
+		if(!httpConfig) httpConfig = UWSProxy.createHTTPConfig();
 
 		const {
 			routes = null,
@@ -383,14 +321,14 @@ class UWSProxy {
 			config,
 			host,
 			port,
-			server
+			protocol
 		} = this.#httpConfig;
 
 		return {
 			config,
 			host,
 			port,
-			server
+			protocol
 		};
 	}
 
@@ -423,7 +361,8 @@ class UWSProxy {
 
 		const {
 			host: privateHost,
-			port: privatePort
+			port: privatePort,
+			protocol: privateProtocol
 		} = this.#httpConfig;
 
 		const {
@@ -464,7 +403,7 @@ class UWSProxy {
 		delete request.headers['connection'];
 
 		// Forward the request to the http server
-		const forwardedRequest = http.request({
+		const forwardedRequest = (privateProtocol === 'https' ? https : http).request({
 			hostname: privateHost,
 			port: privatePort,
 			path: request.url + '?' + request.query,
@@ -525,9 +464,7 @@ class UWSProxy {
 		});
 
 		// All have been set up, let's pipe the body to the http server.
-		pipeline(uwsBodyStream, forwardedRequest, () => {
-			forwardedRequest.end();
-		});
+		uwsBodyStream.pipe(forwardedRequest);
 	}
 }
 

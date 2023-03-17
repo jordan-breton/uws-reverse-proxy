@@ -1,6 +1,6 @@
 # uws-reverse-proxy
 
-This project is a **easy-to-use 0-dependency**\* reverse proxy based on `uWebSockets.js`. It enables use of `uWebSockets.js` and any `http`
+This project is an **easy-to-use 0-dependency**\* reverse proxy based on `uWebSockets.js`. It enables use of `uWebSockets.js` and any `http`
 server (as [express](https://www.npmjs.com/package/express)) on **the same port**.
 
 Tested with:
@@ -8,11 +8,12 @@ Tested with:
 - uWebSockets.js v20.10.0
 - NodeJS v18.0.0
 
-\*: This package do not even depends on `uWebSockets.js` to not force any version usage, see in examples below.
+\* _This package doesn't even depend on `uWebSockets.js` not to force any version usage, see in examples below._
+   _That said, keep in mind that only the last version of uWebSockets.js has been tested._
 
 ## How does it work?
 
-It basically use `uWebSockets.js` as a reverse proxy for all non-websocket trafic and forward it to any
+It basically uses `uWebSockets.js` as a reverse proxy for all non-websocket traffic and forward it to any
 `http` server.
 
 Then it will send the response back to the client without modification.
@@ -30,11 +31,11 @@ and where you often have only one public port available.
 If you're not in a similar use case, just set up an **Nginx** or **Apache** proxy that will filter the requests to redirect them on
 the good **private** port, they will be more efficient and flexible.
 
-Conversely, if your server have to work in **restricted server environment** or if for whatever reason you want `uWebSockets.js` 
+Conversely, if your server has to work in **restricted server environment** or if for whatever reason you want `uWebSockets.js` 
 to handle all requests without standing behind a proxy, then this package is made for you :)
 
 In the case of **express** you _could_ use a package like [http-proxy-middleware](https://www.npmjs.com/package/http-proxy-middleware)
-to do the opposite (using `express` as a reverse-proxy to forward requests to `uWebSockets.js`), but this doesn't seem to work at the time
+to do the opposite (using `express` as a reverse proxy to forward requests to `uWebSockets.js`), but this doesn't seem to work at the time
 I'm writing this, and **it defeats the main advantage of `uWebSockets.js`**: its astonishing performances.
 
 ## Important note about SSL
@@ -77,7 +78,7 @@ yarn add uws-reverse-proxy
 
 ## Usage
 
-This section describe some usage scenario. You can even see them in action in the 
+This section describes some usage scenario. You can even see them in action in the 
 [examples repository](https://github.com/jordan-breton/uws-reverse-proxy-examples).
 
 To see all available options, check the [code API documentation](/api-doc.md).
@@ -136,7 +137,7 @@ proxy.uws.server.listen('0.0.0.0', port, listening => {
 });
 ```
 
-Second use case: providing already created and listening `uWebSocket.js` server:
+Second use case: providing already created and listening `uWebSocket.js` server.
 
 ```js
 const http = require('http');
@@ -183,7 +184,7 @@ If you don't want (or can't) provide the `port`, you can silence the warning usi
 const proxy = new UWSProxy(
 	createUWSConfig(
 		uwsServer,
-		{ quiet: true } // Must be specified to avoid a warning
+		{ quiet: true }
 	)
 );
 proxy.start();
@@ -448,7 +449,7 @@ app.init().then(() => {
   - [ ] A demo repository.
 - [x] Publish on NPM 
 - [ ] Better error management
-  - [ ] Allow to answer to stream errors that are happening before the client response is written 
+  - [ ] Allow answering stream errors that are happening before the client response is written 
 		with proper HTTP formatted response instead of shutting down the connection like a savage.
 - [ ] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
 	  of `write`to avoid adding `Transfer-Encoding: chunked` to every request.

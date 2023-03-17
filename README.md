@@ -44,21 +44,21 @@ as TLS will add a useless overhead in a scenario like this:
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    box Public
-    participant UWS as uWebSockets.js Reverse Proxy
-    end
-    box Private
-    participant N as Node:http
-    end
-    C->>UWS: HTTPS request
-    activate UWS
-    UWS->>N: HTTP request
-    activate N
-    N->>UWS: HTTP Response
-    deactivate N
-    UWS->>C: HTTPS Response
-    deactivate UWS
+	participant C as Client
+	box Public
+	participant UWS as uWebSockets.js Reverse Proxy
+	end
+	box Private
+	participant N as Node:http
+	end
+	C->>UWS: HTTPS request
+	activate UWS
+	UWS->>N: HTTP request
+	activate N
+	N->>UWS: HTTP Response
+	deactivate N
+	UWS->>C: HTTPS Response
+	deactivate UWS
 ```
 
 ## Installation
@@ -111,8 +111,8 @@ const httpServer = http.createServer((req, res) => {
 	res.end('Hello world :)');
 });
 httpServer.listen(
-    proxy.http.port,
-    proxy.http.host,
+	proxy.http.port,
+	proxy.http.host,
 	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 );
 
@@ -169,7 +169,7 @@ const proxy = new UWSProxy(
 		httpServer,
 		{
 			port: httpPort, 
-		    host: httpHost
+			host: httpHost
 		}
 	)
 );
@@ -239,8 +239,8 @@ const uWebSockets = require('uWebSockets.js');
 
 const { 
 	UWSProxy,
-    createUWSConfig,
-    createHTTPConfig
+	createUWSConfig,
+	createHTTPConfig
 } = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
@@ -282,8 +282,8 @@ const uWebSockets = require('uWebSockets.js');
 
 const { 
 	UWSProxy,
-    createUWSConfig,
-    createHTTPConfig
+	createUWSConfig,
+	createHTTPConfig
 } = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
@@ -292,7 +292,7 @@ const proxy = new UWSProxy(
 	createUWSConfig(
 		uWebSockets,
 		{ port }
-    )
+	)
 );
 
 const koaApp = new Koa();
@@ -325,8 +325,8 @@ const uWebSockets = require('uWebSockets.js');
 
 const { 
 	UWSProxy,
-    createUWSConfig,
-    createHTTPConfig
+	createUWSConfig,
+	createHTTPConfig
 } = require('uws-reverse-proxy');
 
 const port = process.env.PORT || 80;
@@ -449,9 +449,9 @@ app.init().then(() => {
   - [ ] A demo repository.
 - [ ] Better error management
   - [ ] Allow to answer to stream errors that are happening before the client response is written 
-        with proper HTTP formatted response instead of shutting down the connection like a savage.
+		with proper HTTP formatted response instead of shutting down the connection like a savage.
 - [ ] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
-      of `write`to avoid adding `Transfer-Encoding: chunked` to every request.
+	  of `write`to avoid adding `Transfer-Encoding: chunked` to every request.
 - [ ] Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)
 - [ ] More flexibility in requests routing through proxy (add more control options, like a pre-handler to allow or not
   forwarding based on custom logic.)

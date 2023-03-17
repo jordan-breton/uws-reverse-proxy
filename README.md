@@ -66,13 +66,13 @@ sequenceDiagram
 With npm:
 
 ```bash
-npm install github:jordan-breton/uws-reverse-proxy#v3.0.1
+npm install uws-reverse-proxy
 ```
 
 With yarn:
 
 ```bash
-yarn add github:jordan-breton/uws-reverse-proxy#v3.0.1
+yarn add uws-reverse-proxy
 ```
 
 ## Usage
@@ -447,6 +447,7 @@ app.init().then(() => {
   - [x] Code API
   - [x] README
   - [ ] A demo repository.
+- [x] Publish on NPM 
 - [ ] Better error management
   - [ ] Allow to answer to stream errors that are happening before the client response is written 
 		with proper HTTP formatted response instead of shutting down the connection like a savage.
@@ -457,4 +458,5 @@ app.init().then(() => {
   forwarding based on custom logic.)
 - [ ] Test uWebSockets.js version agnosticity for all uWebSockets.js versions.
   - [ ] Support backward compatibility
+- [ ] Automated tests included in CI/CD
 - [ ] Debugging mode with console logging

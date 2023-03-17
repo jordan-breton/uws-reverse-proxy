@@ -66,13 +66,13 @@ sequenceDiagram
 With npm:
 
 ```bash
-npm install github:jordan-breton/uws-reverse-proxy#v3.0.0
+npm install github:jordan-breton/uws-reverse-proxy#v3.0.1
 ```
 
 With yarn:
 
 ```bash
-yarn add github:jordan-breton/uws-reverse-proxy#v3.0.0
+yarn add github:jordan-breton/uws-reverse-proxy#v3.0.1
 ```
 
 ## Usage
@@ -436,12 +436,13 @@ app.init().then(() => {
 ## TODO
 
 - [X] PoC (> v1.0.0)
-- [X] Refactoring + Clean & stable implementation (> v3.0.0)
+- [X] Refactoring + Clean & stable implementation (>= v2.0.2)
   - [X] Flexible configuration
   - [X] Config validation
   - [X] Config warnings
   - [X] Configurable backpressure threshold
   - [X] Code comments & JSDOC
+- [x] Generic reverse proxy for any HTTP/HTTPS server
 - [x] Documentation
   - [x] Code API
   - [x] README

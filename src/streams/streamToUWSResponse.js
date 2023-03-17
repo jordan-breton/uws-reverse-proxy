@@ -22,18 +22,20 @@ function streamToUWSResponse(
 	});
 	readStream.on('data', chunk => {
 		try{
-			const ok = uwsResponse.write(chunk);
-			if(!ok){
-				// We have backpressure, we pause until uWebSockets.js tell us that the response
-				// is writable.
-				readStream.pause();
+			uwsResponse.cork(() => {
+				const ok = uwsResponse.write(chunk);
+				if(!ok){
+					// We have backpressure, we pause until uWebSockets.js tell us that the response
+					// is writable.
+					readStream.pause();
 
-				uwsResponse.onWritable(() => {
-					// Chunk sent, backpressure is gone, we can resume :)
-					readStream.resume();
-					return true;
-				});
-			}
+					uwsResponse.onWritable(() => {
+						// Chunk sent, backpressure is gone, we can resume :)
+						readStream.resume();
+						return true;
+					});
+				}
+			});
 		}catch(err){
 			//certainly aborted
 			destroyStream(err);

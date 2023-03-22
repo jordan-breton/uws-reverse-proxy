@@ -15,7 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Error handling. No more connection shutdown without trying to send a proper error response.
 - Various comments to fit the new documentation generation tool.
-- README nestjs example
+
+### Removed
+- Integration examples with express, fastify, koa and nestjs. It have been replaced by a link to
+  the examples repository.
 
 ## 3.0.3 - 2023-03-17
 ### Fixed

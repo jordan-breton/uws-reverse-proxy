@@ -81,7 +81,7 @@ yarn add uws-reverse-proxy
 This section describes some usage scenario. You can even see them in action in the 
 [examples repository](https://github.com/jordan-breton/uws-reverse-proxy-examples).
 
-To see all available options, check the [code API documentation](/api-doc.md).
+To see all available options, check the [code API documentation](https://jordan-breton.github.io/uws-reverse-proxy/).
 
 ### Basic
 
@@ -230,162 +230,14 @@ createUWSConfig(
 )
 ```
 
-### Examples with well known `node:http` based frameworks
+### Integration examples with Express, Koa, Fastify, Nestjs, Node:http
 
-#### express.js
+Please visit the [examples repository](https://github.com/jordan-breton/uws-reverse-proxy-examples).
 
-```js
-const http = require('http');
-const express = require('express');
-const uWebSockets = require('uWebSockets.js');
+It even contains a standalone mode to help you test `uws-reverse-proxy` with your own app without
+changing a line of code for most projects.
 
-const { 
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig
-} = require('uws-reverse-proxy');
-
-const port = process.env.PORT || 80;
-
-const proxy = new UWSProxy(
-	createUWSConfig(
-		uWebSockets,
-		{ port }
-	)
-);
-
-const expressApp = express();
-expressApp.listen(
-	proxy.http.port,
-	proxy.http.host,
-	() => console.log(`Express Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
-);
-
-proxy.uws.server.ws({
-	upgrade : () => { 
-		//...
-    },
-	//...
-});
-
-proxy.uws.server.listen('0.0.0.0', port, listening => {
-	if(listening){
-		console.log(`uWebSockets.js listening on port 0.0.0.0:${port}`);
-	}else{
-		console.error(`Unable to listen on port 0.0.0.0:${port}!`);
-	}
-});
-```
-
-#### koa
-
-```js
-const http = require('http');
-const Koa = require('koa');
-const uWebSockets = require('uWebSockets.js');
-
-const { 
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig
-} = require('uws-reverse-proxy');
-
-const port = process.env.PORT || 80;
-
-const proxy = new UWSProxy(
-	createUWSConfig(
-		uWebSockets,
-		{ port }
-	)
-);
-
-const koaApp = new Koa();
-const httpServer = http.createServer(koa.callback());
-httpServer.listen(
-	proxy.http.port,
-	proxy.http.host,
-	() => console.log(`Koa Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
-);
-
-proxy.uws.server.ws({
-	upgrade : () => { /*...*/ },
-	/* ... */
-});
-
-proxy.uws.server.listen('0.0.0.0', port, listening => {
-	if(listening){
-		console.log(`uWebSockets.js listening on port 0.0.0.0:${port}`);
-	}else{
-		console.error(`Unable to listen on port 0.0.0.0:${port}!`);
-	}
-});
-```
-
-#### Fastify
-
-```js
-const http = require('http');
-const uWebSockets = require('uWebSockets.js');
-
-const { 
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig
-} = require('uws-reverse-proxy');
-
-const port = process.env.PORT || 80;
-
-let httpServer;
-
-const serverFactory = (handler, opts) => {
-	httpServer = http.createServer((req, res) => {
-		handler(req, res);
-	});
-
-	return httpServer;
-}
-
-const fastify = require('fastify')({ serverFactory })
-
-fastify.get('/', (req, reply) => {
-	reply.send({ hello: 'world' })
-});
-
-fastify.ready(() => {
-	const proxy = new UWSProxy(
-		createUWSConfig(
-			uWebSockets,
-			{ port }
-		)
-	);
-
-	httpServer.listen(
-		proxy.http.port,
-		proxy.http.host,
-		() => console.log(`Fastify Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
-	);
-
-	proxy.uws.server.ws({
-		upgrade : () => { /*...*/ },
-		/* ... */
-	});
-
-	proxy.uws.server.listen('0.0.0.0', port, listening => {
-		if(listening){
-			console.log(`uWebSockets.js listening on port 0.0.0.0:${port}`);
-		}else{
-			console.error(`Unable to listen on port 0.0.0.0:${port}!`);
-		}
-	});
-});
-
-```
-
-#### Nestjs
-
-Since this example is a little more complex and involve several files, you should
-take a look at this [code folder](https://github.com/jordan-breton/uws-reverse-proxy-examples/tree/main/examples/nestjs) 
-in the [example repository](https://github.com/jordan-breton/uws-reverse-proxy-examples)
+**Keep in mind that it's... an HTTP reverse proxy. It can forward request to any HTTP server.**
 
 ## TODO
 

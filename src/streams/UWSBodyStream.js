@@ -3,7 +3,7 @@ const { Buffer } = require('buffer');
 
 /**
  * @typedef UWSBodyStreamConfig
- * @property {int} [maxStackedBuffers=4096] Basically, a chunk size will be 500ko on average.
+ * @property {int} [maxStackedBuffers=4096] Default: `4096` - Basically, a chunk size will be 500ko on average.
  *                                          this limit is huge by default (4096 * 500ko ~= 2Go).
  *                                          The fact is that uWebSockets.js receive faster than http.client
  *                                          can send, and if this number is too low, the request will be aborted

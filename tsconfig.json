@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+	"allowJs": true,
+  },
+	"typedocOptions": {
+		"out": "./docs"
+	}
+}

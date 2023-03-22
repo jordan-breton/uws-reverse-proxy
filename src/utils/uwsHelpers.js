@@ -1,16 +1,20 @@
 const TextDecoder  = new (require('util').TextDecoder)();
 
 /**
- * @private
+ * Decoded uWebSockets.js.HttpRequest.
  * @typedef UWSDecodedRequest
- * @property {Object} request
- * @property {string} request.url
- * @property {string} request.method
- * @property {string} request.query
- * @property {Object.<string, string|string[]>} request.headers
- * @property {Object} client
- * @property {string} client.remoteAddress
- * @property {string|null} client.proxiedRemoteAddress
+ * @property {string} url    Called URL
+ * @property {string} method HTTP method (get, post, put, delete, etc.)
+ * @property {string} query  Request's query string (part after ?)
+ * @property {Object.<string, string|string[]>} headers Requests headers
+ * @property {Object} client HttpRequest issuer's data
+ * @property {string} client.remoteAddress Client IP
+ * @property {string|null} client.proxiedRemoteAddress Returns the remote IP address as text, as reported by the
+ *                                                     PROXY Protocol v2 compatible proxy.
+ */
+
+/**
+ * @exports uwsHelpers/UWSDecodedRequest
  */
 
 /**

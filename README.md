@@ -123,8 +123,10 @@ proxy.start();
 
 // Setting up websockets
 proxy.uws.server.ws({
-	upgrade : () => { /*...*/ }
-	/* ... */
+	upgrade : () => {
+		//...
+	}
+	// ...
 });
 
 // Listening
@@ -256,12 +258,14 @@ const expressApp = express();
 expressApp.listen(
 	proxy.http.port,
 	proxy.http.host,
-	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
+	() => console.log(`Express Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 );
 
 proxy.uws.server.ws({
-	upgrade : () => { /*...*/ },
-	/* ... */
+	upgrade : () => { 
+		//...
+    },
+	//...
 });
 
 proxy.uws.server.listen('0.0.0.0', port, listening => {
@@ -300,7 +304,7 @@ const httpServer = http.createServer(koa.callback());
 httpServer.listen(
 	proxy.http.port,
 	proxy.http.host,
-	() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
+	() => console.log(`Koa Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 );
 
 proxy.uws.server.ws({
@@ -358,7 +362,7 @@ fastify.ready(() => {
 	httpServer.listen(
 		proxy.http.port,
 		proxy.http.host,
-		() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
+		() => console.log(`Fastify Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
 	);
 
 	proxy.uws.server.ws({
@@ -379,59 +383,9 @@ fastify.ready(() => {
 
 #### Nestjs
 
-```js
-const http = require('http');
-const express = require('express');
-const uWebSockets = require('uWebSockets.js');
-
-const {
-	UWSProxy,
-	createUWSConfig,
-	createHTTPConfig
-} = require('uws-reverse-proxy');
-
-const port = process.env.PORT || 80;
-
-const expressApp = express();
-const { NestFactory } = require('@nestjs/core');
-const { AppModule } = require('./app.module');
-
-const app = await NestFactory.create(
-	AppModule,
-	new ExpressAdapter(expressApp),
-);
-
-app.init().then(() => {
-	const httpServer = http.createServer(expressApp);
-
-	const proxy = new UWSProxy(
-		createUWSConfig(
-			uWebSockets,
-			{ port }
-		),
-	);
-
-	httpServer.listen(
-		proxy.http.port,
-		proxy.http.host,
-		() => console.log(`HTTP Server listening at ${proxy.http.protocol}://${proxy.http.host}:${proxy.http.port}`)
-	);
-
-	proxy.uws.server.ws({
-		upgrade : () => { /*...*/ },
-		/* ... */
-	});
-
-	proxy.uws.server.listen('0.0.0.0', port, listening => {
-		if(listening){
-			console.log(`uWebSockets.js listening on port 0.0.0.0:${port}`);
-		}else{
-			console.error(`Unable to listen on port 0.0.0.0:${port}!`);
-		}
-	});
-});
-
-```
+Since this example is a little more complex and involve several files, you should
+take a look at this [code folder](https://github.com/jordan-breton/uws-reverse-proxy-examples/tree/main/examples/nestjs) 
+in the [example repository](https://github.com/jordan-breton/uws-reverse-proxy-examples)
 
 ## TODO
 
@@ -446,11 +400,12 @@ app.init().then(() => {
 - [x] Documentation
   - [x] Code API
   - [x] README
-  - [ ] A demo repository.
+  - [X] A demo repository.
 - [x] Publish on NPM 
-- [ ] Better error management
-  - [ ] Allow answering stream errors that are happening before the client response is written 
+- [x] Better error management
+  - [x] Allow answering stream errors that are happening before the client response is written 
 		with proper HTTP formatted response instead of shutting down the connection like a savage.
+  - [x] Allow for errors customization 
 - [ ] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
 	  of `write`to avoid adding `Transfer-Encoding: chunked` to every request.
 - [ ] Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)

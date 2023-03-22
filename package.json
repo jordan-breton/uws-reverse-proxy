@@ -1,6 +1,6 @@
 {
   "name": "uws-reverse-proxy",
-  "version": "3.0.3",
+  "version": "3.1.0",
   "description": "uWebSocket.js based reverse proxy. It allows to run uWebSocket.js on the same port than any other HTTP server. For example: making uWebSocket.js and express/ nestjs / koa / fastify / whatever on the same port possible.",
   "keywords": [
     "uWebSockets.js",

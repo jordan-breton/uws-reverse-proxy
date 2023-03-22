@@ -7,18 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 3.1.0 - 2023-03-22
 ### Added
 - Code API now generated with typedoc
 - Added typedoc generation to GitHub action
 - Added error response customisation
 
-### Fixed
-- Error handling. No more connection shutdown without trying to send a proper error response.
-- Various comments to fit the new documentation generation tool.
-
 ### Removed
 - Integration examples with express, fastify, koa and nestjs. It have been replaced by a link to
   the examples repository.
+
+### Fixed
+- Error handling. No more connection shutdown without trying to send a proper error response.
+- Various comments to fit the new documentation generation tool.
 
 ## 3.0.3 - 2023-03-17
 ### Fixed

@@ -4,6 +4,10 @@
 	"allowJs": true,
   },
 	"typedocOptions": {
-		"out": "./docs"
+		"out": "./docs",
+		"plugin": [
+			"typedoc-plugin-rename-defaults",
+			"typedoc-plugin-mermaid"
+		]
 	}
 }

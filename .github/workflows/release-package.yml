@@ -22,8 +22,8 @@ jobs:
           node-version: '18'
 
       # Install dependencies (required by Run tests step)
-      #- name: Install dependencies
-      #  run: yarn install
+      - name: Install dependencies
+        run: yarn install
 
       # Tests
       #- name: Run tests
@@ -65,13 +65,7 @@ jobs:
 
       # Install typedoc and rebuild the documentation from sources
       - name: Rebuild documentation
-        run: |
-          npm install -g typedoc
-          npm install -g typedoc-plugin-rename-defaults 
-          npm install -g typedoc-plugin-missing-exports 
-          npm install -g typedoc-plugin-mermaid 
-          npm install -g typedoc-plugin-resolve-crossmodule-references
-          typedoc --plugin typedoc-plugin-rename-defaults --plugin typedoc-plugin-missing-exports --plugin typedoc-plugin-mermaid --plugin typedoc-plugin-resolve-crossmodule-references ./src/UWSProxy.js 
+        run: npx typedoc --plugin typedoc-plugin-rename-defaults --plugin typedoc-plugin-missing-exports --plugin typedoc-plugin-mermaid --plugin typedoc-plugin-resolve-crossmodule-references ./src/UWSProxy.js
       
 
       # Commit changes

@@ -14,6 +14,10 @@
   "license": "AGPL-3.0-or-later",
   "private": false,
   "devDependencies": {
+    "typedoc": "^0.23.28",
+    "typedoc-plugin-mermaid": "^1.10.0",
+    "typedoc-plugin-rename-defaults": "^0.6.4",
+    "typescript": "^5.0.2",
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.10.0"
   }
 }

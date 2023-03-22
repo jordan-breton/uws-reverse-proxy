@@ -65,8 +65,7 @@ jobs:
 
       # Install typedoc and rebuild the documentation from sources
       - name: Rebuild documentation
-        run: npx typedoc --plugin typedoc-plugin-rename-defaults --plugin typedoc-plugin-missing-exports --plugin typedoc-plugin-mermaid --plugin typedoc-plugin-resolve-crossmodule-references ./src/UWSProxy.js
-      
+        run: npx typedoc ./src/UWSProxy.js
 
       # Commit changes
       - name: Commit CHANGELOG.md and package.json changes and create tag

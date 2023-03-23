@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ## 3.1.1 - 2023-03-23
+### Changed
+
+- Changed code licensing from AGPL 3.0 and later to LGPL 3.0 or later. This change is retroactive.
 
 ## 3.1.0 - 2023-03-22
 ### Added

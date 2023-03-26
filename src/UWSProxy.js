@@ -747,11 +747,10 @@ class UWSProxy {
 					uwsResponse,
 					errorResponse || this.#buildErrorResponse(error)
 				);
-			})
-				.catch(err => {
-					console.error('UWSProxy: error thrown in error handler: ', err);
-					this.#tryToSendErrorResponse(uwsResponse, this.#buildErrorResponse(error));
-				});
+			}).catch(err => {
+				console.error('UWSProxy: error thrown in error handler: ', err);
+				this.#tryToSendErrorResponse(uwsResponse, this.#buildErrorResponse(error));
+			});
 		} else {
 			this.#tryToSendErrorResponse(uwsResponse, res || this.#buildErrorResponse(error));
 		}

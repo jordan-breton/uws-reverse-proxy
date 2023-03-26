@@ -16,8 +16,10 @@ function streamToUWSResponse(
 
 	readStream.on('close', () => {
 		try{
-			// No matter what happen, once the ReadStream have been closed, we must end the response.
-			uwsResponse.end();
+			uwsResponse.cork(() => {
+				// No matter what happen, once the ReadStream have been closed, we must end the response.
+				uwsResponse.end();
+			});
 		}catch(err){}
 	});
 	readStream.on('data', chunk => {

@@ -484,6 +484,7 @@ class UWSProxy {
 	 *                                  request.
 	 * @param {UWSDecodedRequest} request The decoded uWebSockets.js request to forward
 	 * @param {AbortController} abortController
+	 * @return {module:http.ClientRequest}
 	 */
 	#forwardRequest(
 		uwsResponse,
@@ -716,7 +717,9 @@ class UWSProxy {
 		}
 
 		try{
-			uwsResponse.end(body);
+			uwsResponse.cork(() => {
+				uwsResponse.end(body);
+			});
 		}catch(err){
 			// We can ignore it, the uwsResponse has probably been closed already if we go there.
 		}

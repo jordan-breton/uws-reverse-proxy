@@ -57,31 +57,33 @@ function decodeRequest(uwsResponse, uwsRequest){
  * @param {Object.<string, string|string[]>} headers
  */
 function writeHeaders(uwsResponse, headers){
-	Object.keys(headers || {}).some(header => {
-		if(['status', 'status code'].includes(header.toLowerCase())){
-			uwsResponse.writeStatus(
+	uwsResponse.cork(() => {
+		Object.keys(headers || {}).some(header => {
+			if(['status', 'status code'].includes(header.toLowerCase())){
+				uwsResponse.writeStatus(
+					typeof headers[header] === 'string'
+						? headers[header]
+						: headers[header].toString()
+				);
+
+				delete headers[header];
+				return true;
+			}
+		});
+
+		Object.keys(headers || {}).forEach(header => {
+			if(Array.isArray(headers[header])){
+				headers[header].forEach(val => uwsResponse.writeHeader(
+					header,
+					typeof val === 'string' ? val : val.toString()
+				));
+			} else uwsResponse.writeHeader(
+				header,
 				typeof headers[header] === 'string'
 					? headers[header]
 					: headers[header].toString()
 			);
-
-			delete headers[header];
-			return true;
-		}
-	});
-
-	Object.keys(headers || {}).forEach(header => {
-		if(Array.isArray(headers[header])){
-			headers[header].forEach(val => uwsResponse.writeHeader(
-				header,
-				typeof val === 'string' ? val : val.toString()
-			));
-		} else uwsResponse.writeHeader(
-			header,
-			typeof headers[header] === 'string'
-				? headers[header]
-				: headers[header].toString()
-		);
+		});
 	});
 }
 

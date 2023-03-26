@@ -1,7 +1,7 @@
 # uws-reverse-proxy
 
-This project is an **easy-to-use 0-dependency**\* reverse proxy based on `uWebSockets.js`. It enables use of `uWebSockets.js` and any `http`
-server (as [express](https://www.npmjs.com/package/express)) on **the same port**.
+This project is an **easy-to-use 0-dependency**\* reverse proxy based on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js/). It enables use of `uWebSockets.js` and any `http`
+server (as [express](https://www.npmjs.com/package/express), [NestJS](https://nestjs.com/), [Fastify](https://www.fastify.io/)) on **the same port**.
 
 Tested with:
 

@@ -167,7 +167,7 @@ const UWS_SSL_KEYS = [
  * - EBODYSTREAM: the request body can't be sent to the server or an error occurred while transferring.
  *                In this scenario, the original error is passed to the Error constructor as cause,
  *                and the original error code (if any) can be found in error.original_error.
- * - EGATEWAYABORTED: the gateway received the request but aborted either with partial or no response at all.
+ * - ERECIPIENTABORTED: the recipient server received the request but aborted either with partial or no response at all.
  * @param {Error} error
  * @param {UWSDecodedRequest} decodedRequest
  * @return {UWSProxyErrorResponse|void|Promise<UWSProxyErrorResponse|void>}
@@ -630,8 +630,8 @@ class UWSProxy {
 		abortController.signal.addEventListener('abort', () => {
 			uwsBodyStream.destroy(new Error('UWSProxy: Request aborted by recipient server.'));
 
-			const error = new Error('Gateway abortion');
-			error.code = 'EGATEWAYABORTED';
+			const error = new Error('Aborted by recipient server.');
+			error.code = 'ERECIPIENTABORTED';
 
 			this.#tryToRespondToError(error, uwsResponse, request);
 		});
@@ -676,9 +676,9 @@ class UWSProxy {
 				response.body = `No response received from the server in ${this.#opts.timeout}ms: request aborted (${error.code}).`;
 				break;
 
-			case 'EGATEWAYABORTED':
+			case 'ERECIPIENTABORTED':
 				response.headers.status = "502 Bad Gateway";
-				response.body = `The gateway aborted the proxy request (${error.code}).`;
+				response.body = `The recipient server aborted the proxy request (${error.code}).`;
 				break;
 
 			default:

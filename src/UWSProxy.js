@@ -3,6 +3,14 @@
 const http  = require("http");
 const https = require("https");
 
+https.globalAgent = new https.Agent({
+	keepAlive: true
+});
+
+http.globalAgent = new http.Agent({
+	keepAlive: true
+});
+
 const { isPromise } = require('util').types;
 
 const {
@@ -499,12 +507,12 @@ class UWSProxy {
 
 		const { headers: optsHeaders } = this.#opts;
 
-		const forwardedRequest = (privateProtocol === 'https' ? https : http).request({
+		const httpModule = privateProtocol === 'https' ? https : http;
+		const forwardedRequest = httpModule.request({
 			hostname: privateHost,
 			port: privatePort,
 			path: request.url + '?' + request.query,
 			method: request.method,
-			timeout: this.#opts.timeout,
 			headers: Object.assign(
 				{},
 				request.headers,
@@ -517,10 +525,6 @@ class UWSProxy {
 			// uWebSocket auto-append content-length. If we let the one set up by the answering
 			// server, the browser will error with code ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH
 			delete headers['content-length'];
-
-			// If the server append something that we should not handle, we remove it.
-			delete headers['keep-alive'];
-			delete headers['connection'];
 
 			uwsResponse.cork(() => {
 				try{
@@ -593,11 +597,6 @@ class UWSProxy {
 			|| '';
 
 		const abortController = new AbortController();
-
-		// We don't need those header after the proxy, as we only process one
-		// request at a time, and we want the proxy to manage the connection itself.
-		delete request.headers['keep-alive'];
-		delete request.headers['connection'];
 
 		// endregion
 

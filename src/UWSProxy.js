@@ -3,13 +3,13 @@
 const http  = require("http");
 const https = require("https");
 
-https.globalAgent = new https.Agent({
-	keepAlive: true
-});
+const AGENT_OPTIONS = {
+	keepAlive: false,
+	maxSockets: 1
+};
 
-http.globalAgent = new http.Agent({
-	keepAlive: true
-});
+const HTTPS_AGENT = new https.Agent(AGENT_OPTIONS);
+const HTTP_AGENT = new http.Agent(AGENT_OPTIONS);
 
 const { isPromise } = require('util').types;
 
@@ -316,9 +316,9 @@ class UWSProxy {
 		let uwsServer;
 
 		if(!App && !SSLApp){
-			// If App and SSLApp ar undefined, we try to determine if the first argument is a
-			// constructed App or SSLApp itself. Since the uWebSockets.js package do not expose those
-			// classes, we have to guess using a hacky way? It's not reliable because it may be
+			// If App and SSLApp are undefined, we try to determine if the first argument is a
+			// constructed App or SSLApp. Since the uWebSockets.js package do not expose those
+			// classes, we have to guess using a hacky way... It's not reliable because it may be
 			// changed by the maintainer later, but it's all we have.
 			if(!uWebSocket.constructor?.name?.startsWith('uWS.')){
 				throw new Error(
@@ -518,6 +518,7 @@ class UWSProxy {
 				request.headers,
 				optsHeaders
 			),
+			agent: privateProtocol === 'https' ? HTTPS_AGENT : HTTP_AGENT,
 			signal: abortController.signal
 		}, httpResponse => {
 			const headers = Object.assign({}, httpResponse.headers);
@@ -605,6 +606,8 @@ class UWSProxy {
 			request,
 			abortController
 		);
+
+		if('content-length' in request.headers && request.headers['content-length'] === 0) return;
 
 		// region Piping the request body to the forwarded request
 

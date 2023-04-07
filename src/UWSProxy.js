@@ -615,7 +615,7 @@ class UWSProxy {
 		uwsBodyStream.addListener('error', (err) => {
 			const error = new Error(err.message, { cause: err });
 			error.original_code = error.code;
-			error.code = 'EBODYSTREAM';
+			error.code = 'E_BODY_STREAM';
 
 			this.#tryToRespondToError(error, uwsResponse, request);
 		});
@@ -633,7 +633,7 @@ class UWSProxy {
 			uwsBodyStream.destroy(new Error('UWSProxy: Request aborted by recipient server.'));
 
 			const error = new Error('Aborted by recipient server.');
-			error.code = 'ERECIPIENTABORTED';
+			error.code = 'E_RECIPIENT_ABORTED';
 
 			this.#tryToRespondToError(error, uwsResponse, request);
 		});

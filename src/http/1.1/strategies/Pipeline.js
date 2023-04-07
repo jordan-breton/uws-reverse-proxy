@@ -19,44 +19,42 @@ class Pipeline {
 	_maxRequests;
 
 	/**
-	 * @type {IDataResponseHandler}
+	 * @type {IParser}
 	 */
-	_dataResponseHandler;
+	_parser;
 
 	/**
-	 * @param {PipelineDataResponseHandler} dataResponseHandler
+	 * @param {IParser} parser
 	 * @param {Object} [options]
 	 * @param {int} [options.maxRequests=1000] Default: `1000`. Maximum number of requests in the pipeline.
 	 *                                         If the queue is full, the next request will be rejected.
 	 *                                         Set to `0` to disable the limit.
 	 */
 	constructor(
-		dataResponseHandler,
+		parser,
 		{
 			maxRequests = 1000
 		} = {}
 	) {
-		this._dataResponseHandler = dataResponseHandler;
+		this._parser = parser;
 		this._pendingRequests = [];
 		this._maxRequests = maxRequests;
 
-		dataResponseHandler.on(
+		parser.on(
 			'headers',
 			({
 				statusCode,
 				statusMessage,
-				headers,
-				rawHeaders,
-				rawHeadersBuffer
+				headers
 			}) => {
 				this.setStatus(statusCode, statusMessage);
-				this.setHeaders(headers, rawHeaders, rawHeadersBuffer);
+				this.setHeaders(headers);
 
-				if (dataResponseHandler.expectedBodyLength === 0) this.terminateRequest();
+				if (parser.expectedBodySize === 0) this.terminateRequest();
 			}
 		);
 
-		dataResponseHandler.on('body_chunk', (chunk, isLast) => {
+		parser.on('body_chunk', (chunk, isLast) => {
 			this.addBody(chunk);
 
 			if (isLast) this.terminateRequest();
@@ -70,7 +68,7 @@ class Pipeline {
 	scheduleSend(request, responseCallback, callback) {
 		if (this._maxRequests > 0 && this._pendingRequests.length >= this._maxRequests) {
 			const error = new Error('Too many requests in the pipeline!');
-			error.code = 'EPIPELINEOVERFLOW';
+			error.code = 'E_PIPELINE_OVERFLOW';
 
 			throw error;
 		}
@@ -98,7 +96,7 @@ class Pipeline {
 	}
 
 	handleSocketDataChunk(chunk) {
-		this._dataResponseHandler.handleSocketDataChunk(chunk);
+		this._parser.feed(chunk);
 	}
 
 	/**
@@ -175,7 +173,7 @@ class Pipeline {
 	close() {
 		this._pendingRequests.forEach(pipelinedRequest => {
 			const err = new Error('Request aborted');
-			err.code = 'EPIPELINEABORTED';
+			err.code = 'E_PIPELINE_ABORTED';
 
 			pipelinedRequest.callback(err, pipelinedRequest.response)
 

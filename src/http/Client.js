@@ -4,6 +4,7 @@ const HTTP1RequestSender = require("./HTTP1RequestSender");
 const SequentialDataResponseHandler = require("./SequentialDataResponseHandler");
 const Pipeline = require("./1.1/strategies/Pipeline");
 const Sequential = require("./1.1/strategies/Sequential");
+const Parser = require("./1.1/Parser");
 
 function selectConnectionIn(array){
 	return array[Math.floor(Math.random() * array.length)];
@@ -90,13 +91,11 @@ class Client{
 		const pendingConnections = this._pendingConnections.get(key);
 		pendingConnections.push(promise);
 
-		const dataResponseHandler = this._pipelining
-			? new PipelineDataResponseHandler()
-			: new SequentialDataResponseHandler();
+		const responseParser = new Parser();
 
 		const sendingStrategy = this._pipelining
 			? new Pipeline(
-				dataResponseHandler,
+				responseParser,
 				{
 					maxRequests: this._maxPipelinedRequestsByConnection
 				}
@@ -105,7 +104,7 @@ class Client{
 
 		const connection = new Connection(
 			options,
-			dataResponseHandler,
+			responseParser,
 			new HTTP1RequestSender(
 				sendingStrategy
 			)

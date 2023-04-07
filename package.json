@@ -9,6 +9,9 @@
     "websocket"
   ],
   "main": "index.js",
+  "scripts": {
+    "test": "mocha tests/mocha/**/*.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/jordan-breton/uws-reverse-proxy"
@@ -17,6 +20,7 @@
   "license": "LGPL-3.0-or-later",
   "private": false,
   "devDependencies": {
+    "mocha": "^10.2.0",
     "typedoc": "^0.23.28",
     "typedoc-plugin-mermaid": "^1.10.0",
     "typedoc-plugin-rename-defaults": "^0.6.4",

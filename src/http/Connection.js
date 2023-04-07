@@ -29,7 +29,7 @@ class Connection extends EventEmitter{
 
 	_state;
 
-	_dataResponseHandler;
+	_responseParser;
 
 	/**
 	 * @param {Object} connectionConfig
@@ -42,10 +42,10 @@ class Connection extends EventEmitter{
 	 * @param {string} [connectionConfig.key]
 	 * @param {string} [connectionConfig.cert]
 	 * @param {string} [connectionConfig.ca]
-	 * @param {IDataResponseHandler} dataResponseHandler
+	 * @param {IParser} responseParser
 	 * @param {IRequestSender} requestSender
 	 */
-	constructor(connectionConfig, dataResponseHandler, requestSender){
+	constructor(connectionConfig, responseParser, requestSender){
 		super();
 
 		this._id = i++;
@@ -79,7 +79,7 @@ class Connection extends EventEmitter{
 		this._isSecure = isSecure;
 		this._keepAlive = keepAlive;
 		this._requestSender = requestSender;
-		this._dataResponseHandler = dataResponseHandler;
+		this._responseParser = responseParser;
 		this._maxReopenAttempts = maxReopenAttempts;
 		this._reopenDelay = reopenDelay;
 
@@ -122,7 +122,7 @@ class Connection extends EventEmitter{
 		this._socket.on('data', data => {
 			this._activity();
 
-			this._dataResponseHandler.handleSocketDataChunk(data);
+			this._responseParser.feed(data);
 		});
 
 		this._socket.on('error', (err) => {

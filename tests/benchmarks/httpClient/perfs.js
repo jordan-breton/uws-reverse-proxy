@@ -1,6 +1,6 @@
 const { performance } = require('perf_hooks');
 
-const Client = require('../../src/http/Client');
+const Client = require('../../../src/http/Client');
 const client = new Client();
 
 // Define the number of requests to make

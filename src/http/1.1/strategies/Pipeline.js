@@ -19,12 +19,12 @@ class Pipeline {
 	_maxRequests;
 
 	/**
-	 * @type {IParser}
+	 * @type {IResponseParser}
 	 */
 	_parser;
 
 	/**
-	 * @param {IParser} parser
+	 * @param {IResponseParser} parser
 	 * @param {Object} [options]
 	 * @param {int} [options.maxRequests=1000] Default: `1000`. Maximum number of requests in the pipeline.
 	 *                                         If the queue is full, the next request will be rejected.

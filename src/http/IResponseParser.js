@@ -1,12 +1,12 @@
 /**
- * @interface IParser
+ * @interface IResponseParser
  * @extends {EventEmitter}
  * @property {int} expectedBodySize
  */
 
 /**
  * @function
- * @name IParser#feed
+ * @name IResponseParser#feed
  * @param {Buffer} data
  */
 
@@ -15,5 +15,5 @@
  * is being parsed.
  *
  * @function
- * @name IParser#reset
+ * @name IResponseParser#reset
  */

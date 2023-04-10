@@ -32,7 +32,7 @@ const EMPTY_BUFFER = Buffer.alloc(0);
  * 		    despite the fact they are unsafe because too lax.
  *
  * 		    Never use this parser to query unknown/untrusted servers.
- * @extends {IParser}
+ * @extends {IResponseParser}
  */
 class Parser extends EventEmitter{
 	_headers = {};

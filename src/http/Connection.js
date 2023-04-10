@@ -42,7 +42,7 @@ class Connection extends EventEmitter{
 	 * @param {string} [connectionConfig.key]
 	 * @param {string} [connectionConfig.cert]
 	 * @param {string} [connectionConfig.ca]
-	 * @param {IParser} responseParser
+	 * @param {IResponseParser} responseParser
 	 * @param {IRequestSender} requestSender
 	 */
 	constructor(connectionConfig, responseParser, requestSender){

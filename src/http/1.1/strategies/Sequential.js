@@ -10,6 +10,10 @@ class Sequential{
 	scheduleSend(request, responseCallback, callback) {
 		throw new Error('Not implemented');
 	}
+
+	close() {
+		throw new Error('Not implemented');
+	}
 }
 
 module.exports = Sequential;

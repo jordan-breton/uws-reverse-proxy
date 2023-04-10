@@ -11,6 +11,8 @@ const { Buffer } = require('buffer');
  * @private
  */
 
+// TODO: delete createBufferCopy, and use Uint8Array instead of Buffer
+
 /** *
  * Translate a uWebSockets.js body data stream into a Readable stream, taking backpressure
  * into consideration.
@@ -18,57 +20,39 @@ const { Buffer } = require('buffer');
  * @private
  */
 class UWSBodyStream extends Readable{
-	#uwsResponse;
-	#sendingQueue = [];
-	#lastChunkReceived = false;
-	#maxStackedBuffers = 4096;
-
-	/**
-	 * Copy a buffer into another one without consuming the copied buffer.
-	 * @param {Buffer} buffer
-	 */
-	static createBufferCopy(buffer){
-		const copy = Buffer.alloc(buffer.byteLength);
-		buffer.copy(copy);
-		return copy;
-	}
+	_uwsResponse;
+	_sendingQueue = [];
+	_lastChunkReceived = false;
+	_maxStackedBuffers = 4096;
 
 	/**
 	 * @param {UWSResponse} uwsResponse uWebSockets.js Response object. Request body is in there. Pretty counter-intuitive.
 	 * @param {ReadableOptions & UWSBodyStreamConfig} config Stream configuration options.
-	 * @see https://nodejs.org/api/stream.html#new-streamreadableoptions
+	 * @see https://nodejs.org/api/stream.html_new-streamreadableoptions
 	 */
 	constructor(uwsResponse, config = {}) {
 		super(config);
 
 		// with 512ko/chunk it represents almost 2Go of backpressure allowed by stream
-		this.#maxStackedBuffers = config.maxStackedBuffers || 4096;
-		this.#uwsResponse = uwsResponse;
+		this._maxStackedBuffers = config.maxStackedBuffers || 4096;
+		this._uwsResponse = uwsResponse;
 
 		// Immediately start to read data in res.
 		uwsResponse.onData((chunk, isLast) => {
-			this.#lastChunkReceived = isLast;
-			this.#trySendChunk(Buffer.from(chunk));
+			this._lastChunkReceived = isLast;
+			this._trySendChunk(Buffer.from(chunk));
 
-			if(isLast) this.#tryEnd();
+			if(isLast) this._tryEnd();
 		});
 	}
 
 	/**
-	 * Copy a buffer into another one without consuming the copied buffer.
-	 * @param {Buffer} buffer
-	 */
-	#createBufferCopy(buffer){
-		return this.constructor.createBufferCopy(buffer);
-	}
-
-	/**
 	 * Try to send a chunk and buffer it if we encounter backpressure.
-	 * @param {Buffer} buffer
+	 * @param {Uint8Array} buffer
 	 */
-	#trySendChunk(buffer){
-		if(!this.push(this.#createBufferCopy(buffer))){
-			if(this.#sendingQueue.length === this.#maxStackedBuffers){
+	_trySendChunk(buffer){
+		if(!this.push(new Uint8Array(buffer))){
+			if(this._sendingQueue.length === this._maxStackedBuffers){
 
 				this.destroy(new Error(
 					'Max backpressure threshold reached! Connection dropped.'
@@ -76,12 +60,12 @@ class UWSBodyStream extends Readable{
 
 				try{
 					// Will throw if already closed/aborted, we can ignore it.
-					this.#uwsResponse.close();
+					this._uwsResponse.close();
 				}catch(err){}
 
 				return false;
 			} else {
-				this.#sendingQueue.push(buffer);
+				this._sendingQueue.push(buffer);
 
 				return false;
 			}
@@ -93,30 +77,30 @@ class UWSBodyStream extends Readable{
 	/**
 	 * Try to end the current stream. Will only close if the sending queue is empty.
 	 */
-	#tryEnd(){
-		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
+	_tryEnd(){
+		if(this._sendingQueue.length === 0 && this._lastChunkReceived) this._close();
 	}
 
 	/**
 	 * End the stream then destroy it.
 	 */
-	#close(){
+	_close(){
 		this.push(null);
 		this.destroy();
 	}
 
 	_read(n){
 		// Sending as many data as we can to empty the sendQueue filled by backpressure.
-		while (this.#sendingQueue.length > 0 && this.#trySendChunk(this.#sendingQueue[0])){
-			this.#sendingQueue.shift();
+		while (this._sendingQueue.length > 0 && this._trySendChunk(this._sendingQueue[0])){
+			this._sendingQueue.shift();
 		}
 
 		// Close if no data remains to stream.
-		if(this.#sendingQueue.length === 0 && this.#lastChunkReceived) this.#close();
+		if(this._sendingQueue.length === 0 && this._lastChunkReceived) this._close();
 	}
 
 	_destroy(error, callback) {
-		this.#sendingQueue = [];
+		this._sendingQueue = [];
 		callback(error);
 	}
 }

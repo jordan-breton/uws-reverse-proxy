@@ -1,7 +1,7 @@
 /**
  * @implements {IRequestSender}
  */
-class HTTP1RequestSender {
+class Sender {
 	_requestBuffer;
 	_sendingStrategy;
 
@@ -107,4 +107,4 @@ class HTTP1RequestSender {
 	}
 }
 
-module.exports = HTTP1RequestSender;
+module.exports = Sender;

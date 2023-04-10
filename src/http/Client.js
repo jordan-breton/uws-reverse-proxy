@@ -1,7 +1,5 @@
 const Connection = require('./Connection');
-const PipelineDataResponseHandler = require("./PipelineDataResponseHandler");
-const HTTP1RequestSender = require("./HTTP1RequestSender");
-const SequentialDataResponseHandler = require("./SequentialDataResponseHandler");
+const RequestSender = require("./1.1/Sender");
 const Pipeline = require("./1.1/strategies/Pipeline");
 const Sequential = require("./1.1/strategies/Sequential");
 const Parser = require("./1.1/Parser");
@@ -65,9 +63,7 @@ class Client{
 		const nbConnections = this._connections.has(key) ? this._connections.get(key).length : 0;
 		const nbPendingConnections = this._pendingConnections.has(key) ? this._pendingConnections.get(key).length : 0;
 
-		if(nbConnections >= this._maxConnectionsByHost){
-			throw new Error("Max connections limit reached!");
-		}else if(nbPendingConnections + nbConnections >= this._maxConnectionsByHost){
+		if(nbPendingConnections + nbConnections >= this._maxConnectionsByHost){
 			return selectConnectionIn([
 				...this._pendingConnections.get(key),
 				...this._connections.get(key)
@@ -93,6 +89,13 @@ class Client{
 
 		const responseParser = new Parser();
 
+		responseParser.on('error', error => {
+			if([ 'E_INVALID_CONTENT_LENGTH', 'E_INVALID_CHUNK_SIZE' ].includes(error.code)){
+				connection.emit('error', error);
+				connection.close();
+			}
+		});
+
 		const sendingStrategy = this._pipelining
 			? new Pipeline(
 				responseParser,
@@ -105,7 +108,7 @@ class Client{
 		const connection = new Connection(
 			options,
 			responseParser,
-			new HTTP1RequestSender(
+			new RequestSender(
 				sendingStrategy
 			)
 		);

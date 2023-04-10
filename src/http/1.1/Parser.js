@@ -6,7 +6,7 @@ const CHAR_NEW_LINE = 0x0a;
 const CHAR_SEMICOLON = 0x3b;
 const CHAR_CARRIAGE_RETURN = 0x0d;
 
-// TODO: reject any CONNECT request
+const EMPTY_BUFFER = Buffer.alloc(0);
 
 /**
  * Parse HTTP 1.1 stream. It extracts and parse Headers into an object, parse the status and the statusMessage too,
@@ -15,6 +15,23 @@ const CHAR_CARRIAGE_RETURN = 0x0d;
  * It emits the following events:
  * - headers: when the headers are parsed
  * - body_chunk: when a body chunk have been parsed
+ * - error: when an error occurs
+ *
+ * Error codes:
+ * - E_INVALID_HEADER: when a header lin eis missing a CR
+ * - E_INVALID_CONTENT_LENGTH: when the content-length header is evaluated to NaN by Number
+ * - E_INVALID_CHUNK_SIZE: when the chunk size is missing or is evaluated to NaN by Number.parseInt(,16)
+ * - E_INVALID_CHUNK_HEADER: when the chunk header is missing a CR
+ *
+ * Among the above errors, the parser CAN'T RECOVER from E_INVALID_CONTENT_LENGTH and E_INVALID_CHUNK_SIZE.
+ * THose errors are fatal and must lead to a connection close and a parser reset.
+ *
+ * @warning This parser do not fully implements the HTTP 1.1 specification. It's a very basic implementation.
+ * 			Especially when it comes to security. In our case, the response source can be trusted, since this
+ * 		    parser is used to parse the response of a well-known server. It's also why we use Number() and Number.parseInt()
+ * 		    despite the fact they are unsafe because too lax.
+ *
+ * 		    Never use this parser to query unknown/untrusted servers.
  * @extends {IParser}
  */
 class Parser extends EventEmitter{
@@ -58,16 +75,8 @@ class Parser extends EventEmitter{
 	 */
 	_bodyChunkSize = undefined;
 
-	_maxHeadersSize;
-
-	constructor(
-		{
-			maxHeadersSize = 1024 * 8
-		} = {}
-	){
+	constructor(){
 		super();
-
-		this._maxHeadersSize = maxHeadersSize;
 	}
 
 	get expectedBodySize(){
@@ -86,7 +95,7 @@ class Parser extends EventEmitter{
 
 	_completeStatusCode(byte){
 		if(byte === CHAR_SPACE){
-			this._statusCode = Number.parseInt(this._currentSymbol);
+			this._statusCode = Number(this._currentSymbol);
 			this._completed.statusCode = true;
 			this._currentSymbol = '';
 		}else{
@@ -108,15 +117,8 @@ class Parser extends EventEmitter{
 		for(let i = 0; i < data.length; i++){
 			this._headersRead++;
 
-			if(this._headersRead > this._maxHeadersSize){
-				const error = new Error('Max headers size exceeded');
-				error.code = 'E_HEADERS_TOO_BIG';
-
-				this.emit('error', error);
-			}
-
 			if(this._completed.headers){
-				this._parseBody(data.subarray(i, data.length));
+				this._parseBody(data.subarray(i));
 				break;
 			}
 
@@ -188,6 +190,11 @@ class Parser extends EventEmitter{
 								error.code = 'E_INVALID_CONTENT_LENGTH';
 
 								this.emit('error', error);
+
+								// We stop the parser and ask for a reset until all other async
+								// operations are finished
+								this.reset();
+								return;
 							}
 
 							this._bodyLength = this._headers['content-length'];
@@ -203,6 +210,8 @@ class Parser extends EventEmitter{
 						}else if(this._bodyLength !== undefined){
 							this.emit('body_read_mode', 'FIXED', this._bodyLength);
 						}
+
+						this._currentHeaderName = '';
 
 						this.emit(
 							'headers',
@@ -243,12 +252,12 @@ class Parser extends EventEmitter{
 			|| this._statusCode === 304
 			|| this._bodyLength === 0
 		){
-			this.emit('body_chunk', Buffer.alloc(0), true);
+			this.emit('body_chunk', EMPTY_BUFFER, true);
 
-			// If we have data, we still must parse it. In our case, the response is complete.
-			if(data.length > 0) process.nextTick(() => {
-				this.feed(data);
-			});
+			// If we have data, we still must parse it. It probably belongs to another response.
+			if(data.length > 0){
+				this._feed(data);
+			}
 
 			return true;
 		}
@@ -263,10 +272,19 @@ class Parser extends EventEmitter{
 	}
 
 	_parseFixedBody(data){
-		this._bodyRead += data.length;
+		const remainsToRead = this._bodyLength - this._bodyRead;
+		const dataToRead = Math.min(data.length, remainsToRead);
+
+		this._bodyRead += dataToRead;
 
 		const isLast = this._bodyRead === this._bodyLength;
-		this.emit('body_chunk', data, isLast);
+		if(dataToRead > 0){
+			this.emit('body_chunk', data.subarray(0, dataToRead), isLast);
+		}
+
+		if(isLast && data.length > dataToRead){
+			this._feed(data.subarray(dataToRead));
+		}
 
 		return isLast;
 	}
@@ -278,7 +296,6 @@ class Parser extends EventEmitter{
 		this._bodyChunkRead = 0;
 		this._bodyChunkSize = undefined;
 		this._currentSymbol = '';
-		this._prevByte = undefined;
 	}
 
 	_handleChunkedBodyEnd(){
@@ -287,14 +304,65 @@ class Parser extends EventEmitter{
 			error.code = 'E_INVALID_CHUNK_SIZE';
 
 			this.emit('error', error);
+
+			throw error;
 		}
 
-		this._bodyChunkSize = parseInt(this._currentSymbol, 16);
+		this._bodyChunkSize = Number.parseInt(this._currentSymbol, 16);
+
+		if(Number.isNaN(this._bodyChunkSize)){
+			const error = new Error('FATAL HTTP response error: invalid chunk size.');
+			error.code = 'E_INVALID_CHUNK_SIZE';
+
+			this.emit('error', error);
+
+			throw error;
+		}
+
 		this._currentSymbol = '';
 	}
 
 	_parseChunkedBody(data){
-		if(!this._completed.chunk.header){
+
+		// We must skip the CRLF after the chunk body if any
+		// Since everytime a buffer is read, we re-adjust the buffer view, the CRLF will
+		// always be at the beginning of the buffer at this step.
+		if(this._completed.chunk.header && this._completed.chunk.body){
+			let nbToSKip = 0;
+
+			if(data[0] === CHAR_CARRIAGE_RETURN){
+				nbToSKip++;
+
+				if(data[1] === CHAR_NEW_LINE){
+					nbToSKip++;
+				}
+			}else if(data[0] === CHAR_NEW_LINE){
+				nbToSKip++;
+			}
+
+			if(nbToSKip > 0){
+				this._encounteredEndOfLine++;
+
+				data = data.subarray(nbToSKip);
+				this._resetChunk();
+
+				// We finally encountered the last end of line
+				// the response body is complete
+				if(this._encounteredEndOfLine === 2){
+					// We still have data that belongs to the next response
+					if(data.length > 0){
+						this._reset();
+
+						this._feed(data);
+					}
+
+					// We're done
+					return true;
+				}
+			}
+		}
+
+		if(!this._completed.chunk.header && data.length > 0){
 			let i = 0;
 
 			// Parsing the chunk header
@@ -320,46 +388,57 @@ class Parser extends EventEmitter{
 							this.emit('error', error);
 						}
 
-						if(this._currentSymbol.length !== 0){
+						try{
 							this._handleChunkedBodyEnd();
+						}catch(err){
+							// We stop the parser and ask for a reset until all other async
+							// operations are finished
+							this.reset();
+							return;
 						}
 
 						this._completed.chunk.header = true;
 
+
 						// If the chunk size is 0, we're (almost) done
 						if(this._bodyChunkSize === 0){
 							this._completed.body = true;
+							this._completed.chunk.body = true;
 
 							// We inform the listeners that the body is complete
-							this.emit('body_chunk', Buffer.alloc(0), true);
+							this.emit('body_chunk', EMPTY_BUFFER, true);
 
-							// We finally encountered the last end of line
-							// the response body is complete
-							if(this._encounteredEndOfLine === 2){
-								// We still have data that belongs to the next response
-								if(i < data.length - 1){
-									this.reset();
+							// We still have data that belongs to the next response
+							if(data.length > i + 2){
+								this._reset();
 
-									process.nextTick(() => {
-										this.feed(data.subarray(i, data.length));
-									});
-								}
-
-								// We're done
-								return true;
+								// i + 2 to skip the CRLF
+								this._feed(data.subarray(i + 2));
+								return;
 							}
 						}
 
 						continue;
+					case CHAR_CARRIAGE_RETURN:
+							continue;
 					case CHAR_SEMICOLON:
 
 						// We reach a semicolon. For the first one, what follows is the chunk extension, which we don't
 						// support. All subsequent semicolons separate other extensions. We just ignore all of them.
 						if(this._bodyChunkSize !== undefined){
-							this._handleChunkedBodyEnd();
+							try{
+								this._handleChunkedBodyEnd();
+							}catch(err){
+								// We stop the parser and ask for a reset until all other async
+								// operations are finished
+								this.reset();
+								return;
+							}
 						}
 						continue;
 					default:
+						this._encounteredEndOfLine = 0;
+
 						// We don't have the body chunk size yet, so we're still waiting for the
 						// full length as a hex string
 						if(this._bodyChunkSize === undefined){
@@ -371,20 +450,30 @@ class Parser extends EventEmitter{
 			if(i === data.length){
 				return false;
 			}else{
-				data = data.subarray(i, data.length);
+				data = data.subarray(i);
 			}
 		}
 
 		if(this._completed.chunk.header && !this._completed.chunk.body){
-			this._bodyRead += data.length;
-			this._bodyChunkRead += data.length;
+			this._encounteredEndOfLine = 0;
+
+			const remainsToRead = this._bodyChunkSize - this._bodyChunkRead;
+			const dataToRead = Math.min(data.length, remainsToRead);
+
+			if(dataToRead === 0) return false;
+
+			this._bodyRead += dataToRead;
+			this._bodyChunkRead += dataToRead;
+
+			this.emit('body_chunk', data.subarray(0, dataToRead), false);
 
 			if(this._bodyChunkRead === this._bodyChunkSize){
 				this._completed.chunk.body = true;
-				this._resetChunk();
-			}
 
-			this.emit('body_chunk', data, false);
+				if(dataToRead < data.length){
+					this._feed(data.subarray(dataToRead));
+				}
+			}
 
 			return false;
 		}
@@ -400,32 +489,43 @@ class Parser extends EventEmitter{
 		return false;
 	}
 
-	feed(data){
+	_parse(data){
 		if(this._completed.headers){
 			if(this._parseBody(data)){
-				this.reset();
+				this._reset();
 			}
 		} else {
 			this._parseHeaders(data);
 		}
 	}
 
+	_feed(data, noNextTick = false){
+		if(noNextTick){
+			this._parse(data);
+		}else{
+			process.nextTick(() => {
+				this._parse(data);
+			});
+		}
+	}
+
+	feed(data){
+		// We must ensure every data is processed in the next tick KEEPING THE ORDER
+		// of the data. THis is what _feed is for. For INTERNAL USE ONLY.
+		// An external call to feed() will always be processed in the next microTasks, allowing
+		// the parser to first process the whole data chunk by adding up to ticks queue,
+		// and then we process the data chunk in the next microTask.
+
+		setImmediate(() => {
+			this._feed(data, true);
+		});
+	}
+
 	/**
-	 * Force a parser reset. This is useful when a connection is closed while a response
-	 * is being parsed. It will prevent the parser to stay in an inconsistent state.
-	 *
-	 * When responses are being piped, the parser will reset itself between each
-	 * response, unless the parser emitted a body_read_mode event with 'UNTIL_CLOSE' value.
-	 *
-	 * If it happens to a connection used for pipelining, YOU MUST IMMEDIATELY CLOSE THE SAID
-	 * CONNECTION. Otherwise, the parser will consider every following responses to belong to the same
-	 * body.
-	 *
-	 * @warning Calling this method is dangerous and should be avoided if the connection
-	 * is kept open. It should only be used when the connection is closed.
-	 * @return {Parser}
+	 * Resets synchronously the parser to its initial state.
+	 * @private
 	 */
-	reset(){
+	_reset(){
 		this._headers = {};
 		this._headersRead = 0;
 
@@ -457,8 +557,31 @@ class Parser extends EventEmitter{
 		this._bodyChunkSize = undefined;
 
 		this._prevByte = undefined;
+	}
 
-		return this;
+	/**
+	 * Force a parser reset. This is useful when a connection is closed while a response
+	 * is being parsed. It will prevent the parser to stay in an inconsistent state.
+	 *
+	 * When responses are being piped, the parser will reset itself between each
+	 * response, unless the parser emitted a body_read_mode event with 'UNTIL_CLOSE' value.
+	 *
+	 * If it happens to a connection used for pipelining, YOU MUST IMMEDIATELY CLOSE THE SAID
+	 * CONNECTION. Otherwise, the parser will consider every following responses to belong to the same
+	 * body.
+	 *
+	 * @warning Data that are being processed when calling this method will be fully processed anyway dur to the async nature of
+	 *          the parser. The reset will occur after all current data have been processed.
+	 *          You must wait for the 'reset' event to be sure to be in a consistent fresh state.
+	 */
+	reset(){
+
+		// Since everything is async, we must ensure the reset is processed after current running
+		// async jobs.
+		setImmediate(() => {
+			this._reset();
+			this.emit('reset');
+		});
 	}
 }
 

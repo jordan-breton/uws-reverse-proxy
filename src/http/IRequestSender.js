@@ -32,7 +32,7 @@
 
 /**
  * @function
- * @name IRequestSender_send
+ * @name IRequestSender#send
  * @param {module:net.Socket} socket
  * @param {Request} request
  * @param {sendCallback} callback
@@ -40,7 +40,7 @@
 
 /**
  * @function
- * @name IRequestSender_acceptsMoreRequests
+ * @name IRequestSender#acceptsMoreRequests
  * @return {boolean}
  */
 

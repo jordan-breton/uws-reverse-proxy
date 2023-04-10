@@ -4,6 +4,9 @@ const app = uWebSockets.App();
 
 app.get('/', res => {
 	res.cork(() => {
+		/*res.writeStatus('200 OK');
+		res.writeHeader('Content-Type', 'text/plain');
+		res.writeHeader('Content-Length', '12');*/
 		res.end('Hello world!');
 	});
 });

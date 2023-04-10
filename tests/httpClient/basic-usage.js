@@ -8,6 +8,8 @@ client.request({
 }, (err, res) => {
 	if(err) console.error(err);
 
+	console.log(res);
+
 	res.body.on('data', (chunk) => {
 		console.log(chunk.toString());
 

@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Added
-- Test files used to benchmark different scenarios (no automated tests here)
+- Test files used to benchmark different scenarios (no automated tests here for now)
 - A more performant HTTP client supporting HTTP pipelining, Keep-Alive and connection pooling to replace `node:http` (see #2)
 - Error handling (you can handle errors and customize the error response) (see #2)
+- Started test coverage.
+    - Unit Tests for the HTTP Response parser
 
-### Fixed
+### Improved
 
-- Huge performance issue (see #2)
+- Huge performance issue (see #2) with a custom HTTP Client & HTTP Response parser
+    - Still a lot of work to do to improve the performances
 
 ## 3.1.1 - 2023-03-23
 ### Changed

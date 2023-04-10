@@ -146,7 +146,9 @@ class Pipeline {
 			pipelinedRequest.response.headers = headers;
 			pipelinedRequest.response.metadata.headersTime = process.hrtime();
 
-			pipelinedRequest.callback(null, pipelinedRequest.response);
+			process.nextTick(() => {
+				pipelinedRequest.callback(null, pipelinedRequest.response);
+			});
 		}
 	}
 

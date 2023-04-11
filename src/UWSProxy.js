@@ -517,7 +517,8 @@ class UWSProxy {
 				request.headers,
 				optsHeaders
 			),
-			body: uwsBodyStream
+			body: uwsBodyStream,
+			response: uwsResponse
 		}, (err, response) => {
 
 			if(err){
@@ -526,6 +527,8 @@ class UWSProxy {
 			}
 
 			const { headers, body } = response;
+
+			body.on('error', () => console.error(err));
 
 			const headersToSend = Object.assign({}, headers);
 
@@ -537,32 +540,29 @@ class UWSProxy {
 			// client
 			this._opts.on.headers && this._opts.on.headers(headersToSend);
 
-			uwsResponse.cork(() => {
+			/*uwsResponse.cork(() => {
 				try{
 					uwsResponse.writeStatus(response.statusCode + ' ' + response.statusMessage);
-					uwsResponse.writeHeaders(headersToSend);
+					writeHeaders(uwsResponse, headersToSend);
 				}catch(e){
+					console.log(e);
 					uwsResponse.end();
 				}
-			});
+			});*/
 
 			body.on('error', err => {
+				console.log(err);
 				this._tryToRespondToError(err, uwsResponse, request);
 			});
 
 			if(headers['transfert-encoding'] === 'chunked'){
-				const stream = new Readable({
-					read(){}
-				});
+				try{
+					streamToUWSResponse(uwsResponse, body);
+				}catch(err){
 
-				body.on('data_chunk', (data, isLast) => {
-					stream.push(data);
-					if(isLast) stream.push(null);
-				});
-
-				streamToUWSResponse(uwsResponse, stream);
+				}
 			}else{
-				body.on('data_chunk', (chunk) => {
+				body.on('data', (chunk) => {
 					/* Store where we are, globally, in our response */
 					let lastOffset = uwsResponse.getWriteOffset();
 
@@ -667,13 +667,13 @@ class UWSProxy {
 			});
 		}
 
-		process.nextTick(() => {
+		//process.nextTick(() => {
 			this._forwardRequest(
 				uwsResponse,
 				request,
 				uwsBodyStream
 			);
-		})
+		//})
 
 	}
 

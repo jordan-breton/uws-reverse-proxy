@@ -512,9 +512,9 @@ class Parser extends EventEmitter{
 	feed(data){
 		// We must ensure every data is processed in the next tick KEEPING THE ORDER
 		// of the data. THis is what _feed is for. For INTERNAL USE ONLY.
-		// An external call to feed() will always be processed in the next microTasks, allowing
+		// An external call to feed() will always be processed in the next event loop, allowing
 		// the parser to first process the whole data chunk by adding up to ticks queue,
-		// and then we process the data chunk in the next microTask.
+		// and then we process the data chunk in the next event loop.
 
 		setImmediate(() => {
 			this._feed(data, true);
@@ -570,8 +570,9 @@ class Parser extends EventEmitter{
 	 * CONNECTION. Otherwise, the parser will consider every following responses to belong to the same
 	 * body.
 	 *
-	 * @warning Data that are being processed when calling this method will be fully processed anyway dur to the async nature of
-	 *          the parser. The reset will occur after all current data have been processed.
+	 * @warning Data that are being processed when calling this method will be fully processed
+	 *          anyway due to the async nature of the parser.
+	 *          The reset will occur after all current data have been processed.
 	 *          You must wait for the 'reset' event to be sure to be in a consistent fresh state.
 	 */
 	reset(){

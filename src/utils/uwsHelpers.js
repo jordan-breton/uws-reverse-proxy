@@ -38,13 +38,13 @@ function decodeRequest(uwsResponse, uwsRequest){
 	context.request.method = uwsRequest.getMethod();
 	context.request.query = uwsRequest.getQuery();
 
-	context.client.remoteAddress = context.request.headers['x-forwarded-for'] ||
+	/*context.client.remoteAddress = context.request.headers['x-forwarded-for'] ||
 		TextDecoder.decode(uwsResponse.getRemoteAddressAsText());
 
 	context.client.proxiedRemoteAddress = TextDecoder.decode(uwsResponse.getProxiedRemoteAddressAsText());
 
 	if(context.client.proxiedRemoteAddress.length === 0)
-		context.client.proxiedRemoteAddress = null;
+		context.client.proxiedRemoteAddress = null;*/
 
 	return context;
 }
@@ -58,18 +58,16 @@ function decodeRequest(uwsResponse, uwsRequest){
  */
 function writeHeaders(uwsResponse, headers){
 	uwsResponse.cork(() => {
-		Object.keys(headers || {}).some(header => {
-			if(['status', 'status code'].includes(header.toLowerCase())){
-				uwsResponse.writeStatus(
-					typeof headers[header] === 'string'
-						? headers[header]
-						: headers[header].toString()
-				);
+		if('status' in headers || 'status code' in headers){
+			const header = 'status' in headers ? 'status' : 'status code';
+			uwsResponse.writeStatus(
+				typeof headers[header] === 'string'
+					? headers[header]
+					: headers[header].toString()
+			);
 
-				delete headers[header];
-				return true;
-			}
-		});
+			delete headers[header];
+		}
 
 		Object.keys(headers || {}).forEach(header => {
 			if(Array.isArray(headers[header])){

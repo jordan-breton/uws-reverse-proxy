@@ -55,9 +55,11 @@ class Pipeline {
 		);
 
 		parser.on('body_chunk', (chunk, isLast) => {
-			this.addBody(chunk);
+			process.nextTick(() => {
+				this.addBody(chunk);
 
-			if (isLast) this.terminateRequest();
+				if (isLast) this.terminateRequest();
+			});
 		});
 	}
 
@@ -76,9 +78,9 @@ class Pipeline {
 		const pipelinedRequest = {
 			response: /** @type Response */ {
 				request,
-				body: new Readable({
+				/*body: new Readable({
 					read() {}
-				}),
+				}),*/
 				headers: {},
 				statusCode: null,
 				statusMessage: '',
@@ -127,8 +129,54 @@ class Pipeline {
 	addBody(data) {
 		const pipelinedRequest = this.peek().response;
 		if (pipelinedRequest) {
-			pipelinedRequest.body.push(data);
+
 			this.addByteCount(data.length);
+
+			if(pipelinedRequest.request.response){
+				const headers = pipelinedRequest.headers;
+				const uwsResponse = pipelinedRequest.request.response;
+
+				/* Store where we are, globally, in our response */
+				let lastOffset = uwsResponse.getWriteOffset();
+
+				uwsResponse.cork(() => {
+					/* Streaming a chunk returns whether that chunk was sent, and if that chunk was last */
+					let [ok, done] = uwsResponse.tryEnd(data, headers['content-length']);
+
+					/* Did we successfully send last chunk? */
+					if (done) {
+
+					} else if (!ok) {
+
+						/* Save unsent chunk for when we can send it */
+						uwsResponse.abOffset = lastOffset;
+
+						/* Register async handlers for drainage */
+						uwsResponse.onWritable((offset) => {
+							/* Here the timeout is off, we can spend as much time before calling tryEnd we want to */
+
+							/* On failure the timeout will start */
+							let [ok, done] = uwsResponse.tryEnd(data.subarray(offset - uwsResponse.abOffset), headers['content-length']);
+							if (done) {
+
+							} else if (ok) {
+								/* We sent a chunk and it was not the last one, so let's resume reading.
+								 * Timeout is still disabled, so we can spend any amount of time waiting
+								 * for more chunks to send. */
+
+							}
+
+							/* We always have to return true/false in onWritable.
+							 * If you did not send anything, return true for success. */
+							return ok;
+						});
+					}
+				});
+
+				return;
+			}
+
+			pipelinedRequest.body.push(data);
 		}
 	}
 
@@ -146,9 +194,9 @@ class Pipeline {
 			pipelinedRequest.response.headers = headers;
 			pipelinedRequest.response.metadata.headersTime = process.hrtime();
 
-			process.nextTick(() => {
+			/*process.nextTick(() => {
 				pipelinedRequest.callback(null, pipelinedRequest.response);
-			});
+			});*/
 		}
 	}
 
@@ -166,7 +214,7 @@ class Pipeline {
 			const hrduration = process.hrtime(data.response.metadata.startTime);
 			data.response.metadata.duration = hrduration[0] * 1e3 + hrduration[1] / 1e6;
 
-			data.response.body.push(null);
+			//data.response.body.push(null);
 
 			return data;
 		}

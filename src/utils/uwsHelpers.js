@@ -7,10 +7,6 @@ const TextDecoder  = new (require('util').TextDecoder)();
  * @property {string} method HTTP method (get, post, put, delete, etc.)
  * @property {string} query  Request's query string (part after ?)
  * @property {Object.<string, string|string[]>} headers Requests headers
- * @property {Object} client HttpRequest issuer's data
- * @property {string} client.remoteAddress Client IP
- * @property {string|null} client.proxiedRemoteAddress Returns the remote IP address as text, as reported by the
- *                                                     PROXY Protocol v2 compatible proxy.
  */
 
 /**
@@ -28,25 +24,16 @@ const TextDecoder  = new (require('util').TextDecoder)();
 function decodeRequest(uwsResponse, uwsRequest){
 	// noinspection JSValidateTypes
 	/** @type {UWSDecodedRequest} */
-	const context = {
-		request : { headers : {} },
-		client : { remoteAddress : '0.0.0.0', proxiedRemoteAddress : null}
+	const request = {
+		headers : {}
 	};
 
-	uwsRequest.forEach((k,v)=>{ context.request.headers[k] = v; });
-	context.request.url = uwsRequest.getUrl();
-	context.request.method = uwsRequest.getMethod();
-	context.request.query = uwsRequest.getQuery();
+	uwsRequest.forEach((k,v)=>{ request.headers[k] = v; });
+	request.url = uwsRequest.getUrl();
+	request.method = uwsRequest.getMethod();
+	request.query = uwsRequest.getQuery();
 
-	/*context.client.remoteAddress = context.request.headers['x-forwarded-for'] ||
-		TextDecoder.decode(uwsResponse.getRemoteAddressAsText());
-
-	context.client.proxiedRemoteAddress = TextDecoder.decode(uwsResponse.getProxiedRemoteAddressAsText());
-
-	if(context.client.proxiedRemoteAddress.length === 0)
-		context.client.proxiedRemoteAddress = null;*/
-
-	return context;
+	return request;
 }
 
 /**
@@ -58,18 +45,19 @@ function decodeRequest(uwsResponse, uwsRequest){
  */
 function writeHeaders(uwsResponse, headers){
 	uwsResponse.cork(() => {
-		if('status' in headers || 'status code' in headers){
-			const header = 'status' in headers ? 'status' : 'status code';
+		if('status' in headers){
 			uwsResponse.writeStatus(
-				typeof headers[header] === 'string'
-					? headers[header]
-					: headers[header].toString()
+				typeof headers['status'] === 'string'
+					? headers['status']
+					: headers['status'].toString()
 			);
 
-			delete headers[header];
+			delete headers['status'];
 		}
 
 		Object.keys(headers || {}).forEach(header => {
+			//if(header === 'content-length') return;
+
 			if(Array.isArray(headers[header])){
 				headers[header].forEach(val => uwsResponse.writeHeader(
 					header,

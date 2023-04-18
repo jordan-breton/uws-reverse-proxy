@@ -29,6 +29,7 @@ class Sender {
 		if(!sent){
 			// we have backpressure
 			this._requestBuffer.set(request, true);
+
 			socket.once('drain', () => {
 				this._requestBuffer.delete(request);
 				this._stream(socket, request);
@@ -43,7 +44,6 @@ class Sender {
 		if(!request.path) request.path = '/';
 		if(!request.method) request.method = 'GET';
 		if(!request.headers) request.headers = {};
-		if(!request.metadata) request.metadata = {};
 
 		this._sendingStrategy.scheduleSend(
 			request,
@@ -52,36 +52,67 @@ class Sender {
 		);
 	}
 
+	_trySendChunk(socket, context, chunk){
+		if(!context.backpressure){
+			let sent = socket.write(chunk);
+			if(!sent){
+				context.backpressure = true;
+				socket.once('drain', () => {
+					context.written += chunk.byteLength;
+					context.backpressure = false;
+
+					this._trySendChunk(socket, context, context.stackedBuffers.shift());
+				});
+			}else {
+				context.written += chunk.byteLength;
+			}
+
+			return sent;
+		}else{
+			context.stackedBuffers.push(chunk);
+		}
+
+		return false;
+	}
+
 	_stream(socket, request){
-		const { headers, body } = request;
+		const { headers, response: body } = request;
 
 		// The body is empty. Nothing more to send.
 		if(!body) return;
 
 		if('content-length' in headers ){
+			// Nothing to do if the body is empty
 			if (headers['content-length'] === 0){
-				body.destroy();
 				return;
 			}
 		}
 
-		body.on('data', (chunk) => {
-			let sent = socket.write(chunk);
-			if(!sent){
-				// we have backpressure
-				this._requestBuffer.set(request, true);
+		if(!('transfer-encoding' in headers)){
+			return;
+		}
 
-				body.pause();
+		let context = {
+			lastChunkReceived: false,
+			maxStackedBuffers: 4096,
+			backpressure: false,
+			written: 0,
+			stackedBuffers: []
+		};
 
-				socket.once('drain', () => {
-					this._requestBuffer.delete(request);
-					body.resume();
+		body.onData((chunk, isLast) => {
+			const data = new Uint8Array(chunk);
+			const sent = this._trySendChunk(socket, context, data);
+
+			if(!sent && context.stackedBuffers.length >= context.maxStackedBuffers){
+				body.cork(() => {
+					body.setStatus('504 Gateway Timeout');
+					body.end('The server is too busy to handle your request.');
 				});
 			}
 		});
 
-		// The body stream encounter an error. We need to abort the request.
-		body.on('error', (err) => {
+		body.onAborted(() => {
 			const { headers } = request;
 
 			if('content-length' in headers){
@@ -90,10 +121,17 @@ class Sender {
 				 * 8.2.2 Monitoring Connections for Error Status Messages
 				 *
 				 * If the body was preceded by a Content-Length header, the client MUST
-				 * close the connection.
+				 * close the connection. However, when pipelining is used, we would abort every requests
+				 * in the pipeline. So we just send buffers filled with 0s until content-length is reached.
 				 */
-				socket.destroy(err);
+
+				socket.destroy(Buffer.alloc(headers['content-length'] - context.written));
 			}else if(headers['content-encoding'] === 'chunked'){
+				/**
+				 * @FIXME I suspect that this is not the right way to handle this.
+				 *   We may have to compensate for the chunk size if it has only been partially received
+				 *   before sending the 0 chunk.
+				 */
 				/**
 				 * @see https://www.ietf.org/rfc/rfc2616.txt
 				 * 8.2.2 Monitoring Connections for Error Status Messages

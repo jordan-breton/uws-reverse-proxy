@@ -463,7 +463,9 @@ describe('HTTP responses parser', () => {
 
 	describe('Parsing several responses in one buffer', () => {
 
-		describe('Fixed length, 20 responses', () => {
+		const NB_RESPONSES = 20
+
+		describe(`Fixed length, ${NB_RESPONSES} responses`, () => {
 
 			let parser;
 
@@ -471,11 +473,11 @@ describe('HTTP responses parser', () => {
 				parser = new Parser();
 
 				setImmediate(() => {
-					parser.feed(Buffer.from(RESPONSES.SIMPLE_FIXED.repeat(20)));
+					parser.feed(Buffer.from(RESPONSES.SIMPLE_FIXED.repeat(NB_RESPONSES)));
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -491,8 +493,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -520,7 +522,7 @@ describe('HTTP responses parser', () => {
 
 		});
 
-		describe('Chunked, 20 responses', () => {
+		describe(`Chunked, ${NB_RESPONSES} responses`, () => {
 			let parser;
 
 			beforeEach(() => {
@@ -531,7 +533,7 @@ describe('HTTP responses parser', () => {
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -547,8 +549,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -576,7 +578,7 @@ describe('HTTP responses parser', () => {
 
 		});
 
-		describe('Mixed chunked/fixed length, 20 responses', () => {
+		describe(`Mixed chunked/fixed length, ${NB_RESPONSES} responses`, () => {
 			let parser;
 
 			beforeEach(() => {
@@ -587,7 +589,7 @@ describe('HTTP responses parser', () => {
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -603,8 +605,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -636,9 +638,10 @@ describe('HTTP responses parser', () => {
 
 	describe('Parsing several pipelined responses chunked into several buffers', () => {
 
-		const NB_CHUNKS = 100;
+		const NB_CHUNKS = 275;
+		const NB_RESPONSES = 21;
 
-		describe(`Fixed length, 20 responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
+		describe(`Fixed length, ${NB_RESPONSES} responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
 
 			let parser;
 
@@ -646,7 +649,7 @@ describe('HTTP responses parser', () => {
 				parser = new Parser();
 
 				setImmediate(() => {
-					const fullResponse = Buffer.from(RESPONSES.SIMPLE_FIXED.repeat(20));
+					const fullResponse = Buffer.from(RESPONSES.SIMPLE_FIXED.repeat(NB_RESPONSES));
 					const chunkSize = Math.ceil(fullResponse.length / NB_CHUNKS);
 
 					for(let i = 0; i < NB_CHUNKS; i++){
@@ -659,7 +662,7 @@ describe('HTTP responses parser', () => {
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -675,8 +678,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -704,18 +707,27 @@ describe('HTTP responses parser', () => {
 
 		});
 
-		describe(`Chunked, 20 responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
+		describe(`Chunked, ${NB_RESPONSES} responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
 			let parser;
 
 			beforeEach(() => {
 				parser = new Parser();
 
 				setImmediate(() => {
-					parser.feed(Buffer.from(RESPONSES.SIMPLE_CHUNKED_2.repeat(20)));
+					const fullResponse = Buffer.from(RESPONSES.SIMPLE_CHUNKED_2.repeat(NB_RESPONSES));
+					const chunkSize = Math.ceil(fullResponse.length / NB_CHUNKS);
+
+					for(let i = 0; i < NB_CHUNKS; i++){
+						if(NB_CHUNKS - 1 === i){
+							parser.feed(fullResponse.subarray(i * chunkSize));
+						}else{
+							parser.feed(fullResponse.subarray(i * chunkSize, (i + 1) * chunkSize));
+						}
+					}
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World!" have been received.`, done => {
 
 				let nb = 0,
 					body = '',
@@ -731,8 +743,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -760,18 +772,27 @@ describe('HTTP responses parser', () => {
 
 		});
 
-		describe(`Mixed chunked / fixed length, 20 responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
+		describe(`Mixed chunked / fixed length, ${NB_RESPONSES} responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
 			let parser;
 
 			beforeEach(() => {
 				parser = new Parser();
 
 				setImmediate(() => {
-					parser.feed(Buffer.from((RESPONSES.SIMPLE_CHUNKED_2 + RESPONSES.SIMPLE_FIXED).repeat(10)));
+					const fullResponse = Buffer.from((RESPONSES.SIMPLE_CHUNKED_2 + RESPONSES.SIMPLE_FIXED).repeat(10));
+					const chunkSize = Math.ceil(fullResponse.length / NB_CHUNKS);
+
+					for(let i = 0; i < NB_CHUNKS; i++){
+						if(NB_CHUNKS - 1 === i){
+							parser.feed(fullResponse.subarray(i * chunkSize));
+						}else{
+							parser.feed(fullResponse.subarray(i * chunkSize, (i + 1) * chunkSize));
+						}
+					}
 				});
 			});
 
-			it('Must emit "body_chunk" events until 20 "Hello World! have been received.".', done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -787,8 +808,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === 20){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(20));
+							if(nb === NB_RESPONSES){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
 								done();
 							}
 						}
@@ -823,36 +844,6 @@ describe('HTTP responses parser', () => {
 
 		beforeEach(() => {
 			parser = new Parser();
-		});
-
-		describe('Non-fatal errors', () => {
-
-			it('Must emit an error E_INVALID_HEADER if the response header is missing a CR', done => {
-				parser.on('error', err => {
-					try{
-						assert.strictEqual(err.code, 'E_INVALID_HEADER');
-						done();
-					}catch(err){
-						done(err);
-					}
-				});
-
-				parser.feed(Buffer.from(RESPONSES.SIMPLE_FIXED_MISSING_CR));
-			});
-
-			it('Must emit an error E_INVALID_CHUNK_HEADER if a chunk header is missing a CR', done => {
-				parser.on('error', err => {
-					try{
-						assert.strictEqual(err.code, 'E_INVALID_CHUNK_HEADER');
-						done();
-					}catch(err){
-						done(err);
-					}
-				});
-
-				parser.feed(Buffer.from(RESPONSES.SIMPLE_CHUNKED_MISSING_CR));
-			});
-
 		});
 
 		describe('Fatal errors', () => {

@@ -1,11 +1,8 @@
-const {Readable} = require("stream");
+const {
+	writeHeaders
+} = require('../../../utils/uwsHelpers');
 
-/**
- * @private
- * @typedef {Object} PipelinedRequest
- * @property {Response} response
- * @property {sendCallback} callback
- */
+const { Readable } = require('stream');
 
 /**
  * @implements ISendingStrategy
@@ -13,11 +10,10 @@ const {Readable} = require("stream");
 class Pipeline {
 
 	/**
-	 * @type {PipelinedRequest[]} pendingRequests
+	 * @type {Response[]} pendingRequests
 	 */
-	_pendingRequests = [];
+	_pendingRequests;
 	_maxRequests;
-
 	/**
 	 * @type {IResponseParser}
 	 */
@@ -39,6 +35,11 @@ class Pipeline {
 		this._parser = parser;
 		this._pendingRequests = [];
 		this._maxRequests = maxRequests;
+		this._dataStream = new Readable({
+			objectMode: true,
+
+			read() {}
+		});
 
 		parser.on(
 			'headers',
@@ -50,16 +51,48 @@ class Pipeline {
 				this.setStatus(statusCode, statusMessage);
 				this.setHeaders(headers);
 
+				console.log('headers received, expected body size: ' + parser.expectedBodySize);
+				console.log(headers);
+
 				if (parser.expectedBodySize === 0) this.terminateRequest();
 			}
 		);
 
 		parser.on('body_chunk', (chunk, isLast) => {
-			process.nextTick(() => {
-				this.addBody(chunk);
+			console.log('pushing into stream', isLast);
+			this._dataStream.push([ chunk, isLast ]);
+		});
 
-				if (isLast) this.terminateRequest();
-			});
+		parser.on('error', err => {
+			console.log(err);
+		})
+
+		this._dataStream.on('data', ([ data, isLast ]) => {
+			if(this.peek().stale){
+				console.log('stale, ignoring data...');
+				// we must ignore the data until the last chunk, then throw the request away
+				if(isLast){
+					console.log('stale request terminated');
+					this.terminateRequest();
+				}
+			}else{
+				console.log('not stale, adding body', isLast);
+				this.addBody(data, isLast);
+			}
+		});
+
+		this._dataStream.on('pause', () => {
+			console.log('pause');
+		});
+
+		this._dataStream.on('resume', () => {
+			console.log('resume');
+		});
+
+		this._dataStream.on('error', err => {
+			console.log(err);
+
+			this.close();
 		});
 	}
 
@@ -76,34 +109,33 @@ class Pipeline {
 		}
 
 		const pipelinedRequest = {
-			response: /** @type Response */ {
-				request,
-				/*body: new Readable({
-					read() {}
-				}),*/
-				headers: {},
-				statusCode: null,
-				statusMessage: '',
-				metadata: {
-					startTime: process.hrtime(),
-					bytes: 0
-				}
-			},
+			request,
+			headers: {},
+			stale: false,
 			callback: responseCallback
 		};
 
+		request.response.onAborted(() => {
+			// Mark the request as stale so the data we continue to receive can be ignored
+			// until receiving the last chunk.
+			pipelinedRequest.stale = true;
+
+			// If it were paused, we must resume it to avoid a deadlock
+			this._dataStream.resume();
+		});
+
 		this._pendingRequests.push(pipelinedRequest);
 
-		callback();
-	}
+		console.log(pipelinedRequest);
 
-	handleSocketDataChunk(chunk) {
-		this._parser.feed(chunk);
+		setImmediate(() => {
+			callback();
+		});
 	}
 
 	/**
 	 * Returns the first-in request
-	 * @return {PipelinedRequest}
+	 * @return {Response}
 	 */
 	peek() {
 		if (this._pendingRequests.length > 0) {
@@ -111,92 +143,131 @@ class Pipeline {
 		}
 	}
 
-	/**
-	 * Adds the given number of bytes to the first-in request
-	 * @param {int} count
-	 */
-	addByteCount(count) {
-		const pipelinedRequest = this.peek().response.metadata;
-		if (pipelinedRequest) {
-			pipelinedRequest.bytes += count;
+	_sendStreamChunk(data, isLast = false){
+		const pipelinedRequest = this.peek();
+
+		if(!pipelinedRequest) return;
+
+		const uwsResponse = pipelinedRequest.request.response;
+
+		// We're streaming
+		try{
+			uwsResponse.cork(() => {
+				const ok = uwsResponse.write(data);
+				if(!ok){
+					// We have backpressure, we pause until uWebSockets.js tell us that the response
+					// is writable.
+					this._dataStream.pause();
+
+					uwsResponse.onWritable(() => {
+						if(isLast) this.terminateRequest();
+
+						// Chunk sent, backpressure is gone, we can resume :)
+						this._dataStream.resume();
+						return true;
+					});
+				}else if(isLast){
+					this.terminateRequest();
+				}
+			});
+		}catch(err){
+			// The response have been aborted
+		}
+	}
+
+	_sendChunk(data, totalSize = 0, resumeIfOK = false) {
+		const pipelinedRequest = this.peek();
+
+		if(!pipelinedRequest) return;
+
+		const uwsResponse = pipelinedRequest.request.response;
+
+		try{
+			/* Store where we are, globally, in our response */
+			let lastOffset = uwsResponse.getWriteOffset();
+
+			uwsResponse.cork(() => {
+				/* Streaming a chunk returns whether that chunk was sent, and if that chunk was last */
+				let [ok, done] = uwsResponse.tryEnd(data, totalSize);
+
+				/* Did we successfully send last chunk? */
+				if (done) {
+					this.terminateRequest();
+				} else if (!ok) {
+					this._dataStream.pause();
+
+					/* Register async handlers for drainage */
+					uwsResponse.onWritable((offset) => {
+						this._sendChunk(data.subarray(offset - lastOffset), totalSize, true);
+
+
+						/* We always have to return true/false in onWritable.
+						 * If you did not send anything, return true for success. */
+						return ok;
+					});
+				}
+
+				if(ok && resumeIfOK) this._dataStream.resume();
+			});
+		}catch(err){
+			console.log(err);
+			// Nothing more to do, the response have been aborted.
+			// We still have to consume data from the parser. In pipelines, we
+			// can't close connection without aborting all pending requests
 		}
 	}
 
 	/**
 	 * Adds the given data to the first-in request body
 	 * @param {Buffer} data
+	 * @param {boolean} isLast If true, the request will be terminated
 	 */
-	addBody(data) {
-		const pipelinedRequest = this.peek().response;
-		if (pipelinedRequest) {
+	addBody(data, isLast = false) {
+		const pipelinedRequest = this.peek();
 
-			this.addByteCount(data.length);
-
-			if(pipelinedRequest.request.response){
-				const headers = pipelinedRequest.headers;
-				const uwsResponse = pipelinedRequest.request.response;
-
-				/* Store where we are, globally, in our response */
-				let lastOffset = uwsResponse.getWriteOffset();
-
-				uwsResponse.cork(() => {
-					/* Streaming a chunk returns whether that chunk was sent, and if that chunk was last */
-					let [ok, done] = uwsResponse.tryEnd(data, headers['content-length']);
-
-					/* Did we successfully send last chunk? */
-					if (done) {
-
-					} else if (!ok) {
-
-						/* Save unsent chunk for when we can send it */
-						uwsResponse.abOffset = lastOffset;
-
-						/* Register async handlers for drainage */
-						uwsResponse.onWritable((offset) => {
-							/* Here the timeout is off, we can spend as much time before calling tryEnd we want to */
-
-							/* On failure the timeout will start */
-							let [ok, done] = uwsResponse.tryEnd(data.subarray(offset - uwsResponse.abOffset), headers['content-length']);
-							if (done) {
-
-							} else if (ok) {
-								/* We sent a chunk and it was not the last one, so let's resume reading.
-								 * Timeout is still disabled, so we can spend any amount of time waiting
-								 * for more chunks to send. */
-
-							}
-
-							/* We always have to return true/false in onWritable.
-							 * If you did not send anything, return true for success. */
-							return ok;
-						});
-					}
-				});
-
-				return;
-			}
-
-			pipelinedRequest.body.push(data);
+		if(!pipelinedRequest || !pipelinedRequest.request.response){
+			if(isLast) this.terminateRequest();
+			return;
 		}
-	}
+
+		const headers = pipelinedRequest.headers;
+
+		if(!('content-length' in headers)){
+			this._sendStreamChunk(data, isLast);
+		} else {
+			this._sendChunk(data, headers['content-length']);
+		}
+}
 
 	setStatus(statusCode, statusMessage) {
 		const pipelinedRequest = this.peek();
-		if (pipelinedRequest) {
-			pipelinedRequest.response.statusCode = statusCode;
-			pipelinedRequest.response.statusMessage = statusMessage;
+
+		if(!pipelinedRequest) return;
+
+		const uwsResponse = pipelinedRequest.request.response;
+
+		try{
+			uwsResponse.cork(() => {
+				uwsResponse.writeStatus(`${statusCode} ${statusMessage}`);
+			});
+		}catch(err){
+			console.log(err);
+			// Nothing more to do, the response have been aborted.
 		}
 	}
 
 	setHeaders(headers) {
 		const pipelinedRequest = this.peek();
-		if (pipelinedRequest) {
-			pipelinedRequest.response.headers = headers;
-			pipelinedRequest.response.metadata.headersTime = process.hrtime();
 
-			/*process.nextTick(() => {
-				pipelinedRequest.callback(null, pipelinedRequest.response);
-			});*/
+		if(!pipelinedRequest) return;
+
+		pipelinedRequest.headers = headers;
+
+		try{
+			writeHeaders(pipelinedRequest.request.response, headers);
+		}catch (err){
+			console.log(err);
+			// Nothing more to do, the response have been aborted.
 		}
 	}
 
@@ -205,47 +276,23 @@ class Pipeline {
 	}
 
 	/** Terminates the first-in request
-	 * This will calculate the request duration, remove it from the queue and return its data
-	 * @return {PipelinedRequest}
+	 * Remove the request from the queue and return its data
+	 * @return {Response}
 	 **/
 	terminateRequest() {
 		if (this._pendingRequests.length > 0) {
-			const data = this._pendingRequests.shift();
-			const hrduration = process.hrtime(data.response.metadata.startTime);
-			data.response.metadata.duration = hrduration[0] * 1e3 + hrduration[1] / 1e6;
+			console.log('terminating request');
+			const pipelinedRequest = this._pendingRequests.shift();
 
-			//data.response.body.push(null);
+			this._dataStream.resume();
 
-			return data;
+			return pipelinedRequest;
 		}
 	}
 
 	close() {
-		this._pendingRequests.forEach(pipelinedRequest => {
-			const err = new Error('Request aborted');
-			err.code = 'E_PIPELINE_ABORTED';
-
-			pipelinedRequest.callback(err, pipelinedRequest.response)
-
-			// We destroy the response stream with error.
-			pipelinedRequest.response.body.destroy(err);
-
-			if (pipelinedRequest.response.request.body) {
-				// If any, We destroy the request body stream to ensure it is closed.
-				// We don't need it anymore.
-				pipelinedRequest.response.request.body.destroy();
-			}
-		});
-
-		this._pendingRequests = [];
-	}
-
-	/**
-	 * Returns a copy of the queue
-	 * @return {PipelinedRequest[]}
-	 */
-	toArray() {
-		return this._pendingRequests.slice();
+		// Nothing to do. We don't want to close responses here, since they may have received
+		// data that can still be sent back to the client
 	}
 }
 

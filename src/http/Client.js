@@ -176,6 +176,8 @@ class Client{
 	 * @param {sendCallback} callback
 	 */
 	request(options, callback){
+		console.log(options);
+
 		if(this._closed){
 			throw new Error('Client is closed. Create a new one to make more requests.');
 		}

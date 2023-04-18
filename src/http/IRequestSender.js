@@ -4,24 +4,27 @@
  */
 
 /**
+ * uWebSockets.js HttpResponse
+ * @see [HttpResponse Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/HttpResponse.html)
+ * @typedef {import("uWebSockets.js").HttpResponse} UWSResponse
+ */
+
+/**
  * @typedef {Object} Request
  * @property {Object} headers
  * @property {string} method
  * @property {string} path
  * @property {string} host
  * @property {number} port
- * @property {null|string|Buffer} [body=null]
- * @property {Object} [metadata={}]
+ * @property {response} UWSResponse
  */
 
 /**
  * @typedef {Object} Response
  * @property {Request} request
  * @property {Object} headers
- * @property {Readable} body
- * @property {number} statusCode
- * @property {string} statusMessage
- * @property {Object} metadata
+ * @property {boolean} stale True when the response have been aborted
+ * @property {sendCallback} callback
  */
 
 /**

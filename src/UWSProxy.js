@@ -8,10 +8,6 @@ const {
 	writeHeaders
 } = require('./utils/uwsHelpers');
 
-const streamToUWSResponse = require("./streams/streamToUWSResponse");
-const { Readable } = require("stream");
-const UWSBodyStream = require("./streams/UWSBodyStream");
-
 // endregion
 
 // region Private declarations
@@ -482,17 +478,13 @@ class UWSProxy {
 	}
 
 	/**
-	 * Forward a given request and give back the response
-	 * @param {UWSResponse} uwsResponse The response in which we will write the result of our forwarded
-	 *                                  request.
-	 * @param {UWSDecodedRequest} request The decoded uWebSockets.js request to forward
-	 * @param {UWSBodyStream|undefined} uwsBodyStream The body stream of the request
+	 * Handle a request received by uWebSockets.js and forward it to the http server.
+	 * @param {UWSResponse} uwsResponse
+	 * @param {UWSRequest} uwsRequest
 	 */
-	_forwardRequest(
-		uwsResponse,
-		request,
-		uwsBodyStream
-	){
+	_handleRequest(uwsResponse, uwsRequest){
+		const request = decodeRequest(uwsResponse, uwsRequest)
+
 		const {
 			host: privateHost,
 			port: privatePort,
@@ -517,164 +509,12 @@ class UWSProxy {
 				request.headers,
 				optsHeaders
 			),
-			body: uwsBodyStream,
 			response: uwsResponse
-		}, (err, response) => {
-
+		}, err => {
 			if(err){
 				this._tryToRespondToError(err, uwsResponse, request);
-				return;
-			}
-
-			const { headers, body } = response;
-
-			body.on('error', () => console.error(err));
-
-			const headersToSend = Object.assign({}, headers);
-
-			// uWebSocket auto-append content-length. If we let the one set up by the answering
-			// server, the browser will error with code ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_LENGTH
-			delete headersToSend['content-length'];
-
-			// Giving the proxy the chance to modify the headers before sending them to the
-			// client
-			this._opts.on.headers && this._opts.on.headers(headersToSend);
-
-			/*uwsResponse.cork(() => {
-				try{
-					uwsResponse.writeStatus(response.statusCode + ' ' + response.statusMessage);
-					writeHeaders(uwsResponse, headersToSend);
-				}catch(e){
-					console.log(e);
-					uwsResponse.end();
-				}
-			});*/
-
-			body.on('error', err => {
-				console.log(err);
-				this._tryToRespondToError(err, uwsResponse, request);
-			});
-
-			if(headers['transfert-encoding'] === 'chunked'){
-				try{
-					streamToUWSResponse(uwsResponse, body);
-				}catch(err){
-
-				}
-			}else{
-				body.on('data', (chunk) => {
-					/* Store where we are, globally, in our response */
-					let lastOffset = uwsResponse.getWriteOffset();
-
-					uwsResponse.cork(() => {
-						/* Streaming a chunk returns whether that chunk was sent, and if that chunk was last */
-						let [ok, done] = uwsResponse.tryEnd(chunk, headers['content-length']);
-
-						/* Did we successfully send last chunk? */
-						if (done) {
-							body.destroy();
-						} else if (!ok) {
-							/* If we could not send this chunk, pause */
-							body.pause();
-
-							/* Save unsent chunk for when we can send it */
-							uwsResponse.abOffset = lastOffset;
-
-							/* Register async handlers for drainage */
-							uwsResponse.onWritable((offset) => {
-								/* Here the timeout is off, we can spend as much time before calling tryEnd we want to */
-
-								/* On failure the timeout will start */
-								let [ok, done] = uwsResponse.tryEnd(chunk.subarray(offset - uwsResponse.abOffset), headers['content-length']);
-								if (done) {
-									body.destroy();
-								} else if (ok) {
-									/* We sent a chunk and it was not the last one, so let's resume reading.
-									 * Timeout is still disabled, so we can spend any amount of time waiting
-									 * for more chunks to send. */
-									body.resume();
-								}
-
-								/* We always have to return true/false in onWritable.
-								 * If you did not send anything, return true for success. */
-								return ok;
-							});
-						}
-					});
-				});
 			}
 		});
-	}
-
-	/**
-	 * Handle a request received by uWebSockets.js and forward it to the http server.
-	 * @param {UWSResponse} uwsResponse
-	 * @param {UWSRequest} uwsRequest
-	 */
-	_handleRequest(uwsResponse, uwsRequest){
-		// region Request forwarding preparation
-
-		const {
-			ssl,
-			port: publicPort
-		} = this._uwsConfig;
-
-		const {
-			backpressure: { maxStackedBuffers }
-		} = this._opts;
-
-		const {
-			client,
-			request
-		} = decodeRequest(uwsResponse, uwsRequest);
-
-		const proxyHeaders = {
-			for: client.remoteAddress,
-			port: publicPort,
-			proto: ssl ? 'https' : 'http'
-		};
-
-		['for', 'port', 'proto'].forEach(function (header) {
-			request.headers['x-forwarded-' + header] =
-				(request.headers['x-forwarded-' + header] || '') +
-				(request.headers['x-forwarded-' + header] ? ',' : '') +
-				proxyHeaders[header];
-		});
-
-		request.headers['x-forwarded-host'] = request.headers['x-forwarded-host']
-			|| request.headers['host']
-			|| '';
-
-		// endregion
-
-		let uwsBodyStream;
-		if('content-length' in request.headers && request.headers['content-length'] > 0){
-			// region Piping the request body to the forwarded request
-
-			uwsBodyStream = new UWSBodyStream(uwsResponse, { maxStackedBuffers });
-			uwsBodyStream.addListener('error', (err) => {
-				const error = new Error(err.message, { cause: err });
-				error.original_code = error.code;
-				error.code = 'E_BODY_STREAM';
-
-				this._tryToRespondToError(error, uwsResponse, request);
-			});
-
-			// If the client abort the uWebSocket request, we must abort proxy's requests to the
-			// http server too.
-			uwsResponse.onAborted(() => {
-				uwsBodyStream.destroy(new Error('UWSProxy: Request aborted by client.'));
-			});
-		}
-
-		//process.nextTick(() => {
-			this._forwardRequest(
-				uwsResponse,
-				request,
-				uwsBodyStream
-			);
-		//})
-
 	}
 
 	// region Error handling
@@ -717,6 +557,8 @@ class UWSProxy {
 				break;
 
 			default:
+				console.log(error);
+
 				// In every other case the response is invalid for a reason or another.
 				response.headers['status code'] = "502 Bad Gateway";
 				response.body = `The proxy received a malformed or incomplete response from the server,`
@@ -729,7 +571,7 @@ class UWSProxy {
 	/**
 	 * Make an attempt to send an UWSProxyErrorResponse to the client. This may produce no result
 	 * if the UWSResponse have been aborted/closed already. This method will just fail silently if it
-	 * happen.
+	 * happens.
 	 *
 	 * @param {UWSResponse} uwsResponse The response we want to write into
 	 * @param {UWSProxyErrorResponse} errorResponse The error to send.

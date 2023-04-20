@@ -119,8 +119,11 @@ class Connection extends EventEmitter{
 			this._changeState(Connection.STATES.CONNECTED);
 		});
 
+		let received = 0;
+
 		this._socket.on('data', data => {
 			this._activity();
+			received += data.length;
 
 			this._responseParser.feed(data);
 		});

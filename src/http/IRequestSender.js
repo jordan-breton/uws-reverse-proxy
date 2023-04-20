@@ -16,7 +16,7 @@
  * @property {string} path
  * @property {string} host
  * @property {number} port
- * @property {response} UWSResponse
+ * @property {UWSResponse} response
  */
 
 /**

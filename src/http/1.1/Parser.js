@@ -1,5 +1,7 @@
 const { EventEmitter } = require('events');
 
+// region Private constants
+
 const CHAR_COLON = 0x3a;
 const CHAR_SPACE = 0x20;
 const CHAR_NEW_LINE = 0x0a;
@@ -23,6 +25,8 @@ const BODY_READ_MODE = {
 	CHUNKED: 'CHUNKED'
 };
 
+// endregion
+
 /**
  * Parse HTTP 1.1 stream. It extracts and parse Headers into an object, parse the status and the statusMessage too,
  * then parse tho body.
@@ -45,7 +49,8 @@ const BODY_READ_MODE = {
  * 		    despite the fact they are unsafe because too lax.
  *
  * 		    Never use this parser to query unknown/untrusted servers.
- * @extends {IResponseParser}
+ *
+ * @implements {IResponseParser}
  */
 class Parser extends EventEmitter{
 	_headers = {};
@@ -82,7 +87,7 @@ class Parser extends EventEmitter{
 	_bodyChunkRead = 0;
 
 	/**
-	 * Total size of the current body chunk. We're waiting a chunk of that size.
+	 * Total size of the current body chunk.
 	 * @type {number}
 	 * @private
 	 */
@@ -96,412 +101,296 @@ class Parser extends EventEmitter{
 		return this._bodyLength;
 	}
 
-	_parseHeaders(data){
+	feed(data){
+		if(data.length === 0) return;
+
+		// One pass, no recursion
+		// It's a long one, but it's the most efficient way to do it
+		// on a continuous stream I could come up with
 		for(let i = 0; i < data.length; i++){
-			this._headersRead++;
-
-			if(this._completed.headers){
-				this._parseBody(data.subarray(i));
-				break;
-			}
-
 			const byte = data[i];
 			const prevByte = this._prevByte;
 			this._prevByte = byte;
 
-			if(!this._completed.version){
-				if(byte === CHAR_SPACE){
-					this._version = this._currentSymbol;
-					this._completed.version = true;
-					this._currentSymbol = '';
-				}else{
-					this._currentSymbol += String.fromCharCode(byte);
-				}
-
-				continue;
-			}else if(!this._completed.statusCode){
-				if(byte === CHAR_SPACE){
-					this._statusCode = Number(this._currentSymbol);
-					this._completed.statusCode = true;
-					this._currentSymbol = '';
-				}else{
-					this._currentSymbol += String.fromCharCode(byte);
-				}
-
-				continue;
-			}else if(!this._completed.statusMessage){
-				if(byte === CHAR_NEW_LINE && prevByte === CHAR_CARRIAGE_RETURN){
-					this._statusMessage = this._currentSymbol;
-					this._completed.statusMessage = true;
-					this._currentSymbol = '';
-				}else if(byte !== CHAR_CARRIAGE_RETURN){
-					this._currentSymbol += String.fromCharCode(byte);
-				}
-
-				continue;
-			}
-
-			// If we are here, it means that we are parsing the headers
-			switch(byte){
-				case CHAR_COLON:
-					this._encounteredEndOfLine = 0;
-
-					if(this._currentHeaderName) {
-						this._currentSymbol += ':'; // We add the colon back to the symbol
-						continue;
-					}
-
-					this._currentHeaderName = this._currentSymbol.toLowerCase();
-					this._currentSymbol = '';
-
-					this._headers[this._currentHeaderName] = '';
-					break;
-				case CHAR_CARRIAGE_RETURN:
-					break;
-				case CHAR_NEW_LINE:
-					this._encounteredEndOfLine++;
-
-					if(this._encounteredEndOfLine === 1){
-						this._headers[this._currentHeaderName] = this._currentSymbol;
-						this._currentHeaderName = '';
+			if(!this._completed.headers){
+				if(!this._completed.version){
+					if(byte === CHAR_SPACE){
+						this._version = this._currentSymbol;
+						this._completed.version = true;
 						this._currentSymbol = '';
-					} else if(this._encounteredEndOfLine === 2){
-						this._encounteredEndOfLine = 0;
-						this._completed.headers = true;
-
-						if(HEADER_TRANSFER_ENCODING in this._headers){
-							this._headers[HEADER_TRANSFER_ENCODING] = this._headers[HEADER_TRANSFER_ENCODING].toLowerCase();
-							this._bodyLength = undefined;
-							this._bodyChunked = this._headers[HEADER_TRANSFER_ENCODING].indexOf('chunked') !== -1;
-
-							// As per RFC 7230, section 3.3.3, we should ignore the content-length header if the
-							// transfer-encoding header is present
-							delete this._headers[HEADER_CONTENT_LENGTH];
-						}
-
-						if(!this._bodyChunked && HEADER_CONTENT_LENGTH in this._headers){
-							this._headers[HEADER_CONTENT_LENGTH] = Number.parseInt(this._headers[HEADER_CONTENT_LENGTH]);
-
-							// As per RFC 7230, section 3.3.2, we should close the connection if the content-length
-							// header is not a valid number
-							if(Number.isNaN(this._headers[HEADER_CONTENT_LENGTH])){
-								const error = new Error('FATAL HTTP response error: invalid content-length. The connection MUST be closed.');
-								error.code = 'E_INVALID_CONTENT_LENGTH';
-
-								this.emit(EVT_ERROR, error);
-
-								// We stop the parser and ask for a reset until all other async
-								// operations are finished
-								this.reset();
-								return;
-							}
-
-							this._bodyLength = this._headers[HEADER_CONTENT_LENGTH];
-						}
-
-						// We notify listeners in which mode we will read the body
-						// it's important in pipelined connections, because if we're in UNTIL_CLOSE
-						// mode and are using pipelining, the pipeline will be broken.
-						// Therefor, it must be immediately closed.
-						if(!this._bodyChunked && this._bodyLength === undefined){
-							this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.UNTIL_CLOSE);
-						}else if(this._bodyChunked){
-							this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.CHUNKED);
-						}else if(this._bodyLength !== undefined){
-							this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.FIXED, this._bodyLength);
-						}
-
-						this._currentHeaderName = '';
-
-						this.emit(
-							EVT_HEADERS,
-							{
-								headers: this._headers,
-								statusCode: this._statusCode,
-								statusMessage: this._statusMessage,
-								version: this._version
-							}
-						);
-					}
-					break;
-				default:
-					this._encounteredEndOfLine = 0;
-
-					// We don't need the first space into the header value
-					if(!this._currentSymbol && byte === CHAR_SPACE && prevByte === CHAR_COLON){
-						continue;
+					}else{
+						this._currentSymbol += String.fromCharCode(byte);
 					}
 
-					this._currentSymbol += String.fromCharCode(byte);
-					break;
-			}
-		}
-	}
+					continue;
+				}else if(!this._completed.statusCode){
+					if(byte === CHAR_SPACE){
+						this._statusCode = Number(this._currentSymbol);
+						this._completed.statusCode = true;
+						this._currentSymbol = '';
 
-	_parseBody(data){
-		/**
-		 * Per RFC 7230, section 3.3.3, a message body must not be included in:
-		 * - 1xx (Informational) response
-		 * - 204 (No Content) response
-		 * - 304 (Not Modified) response.
-		 * @see https://greenbytes.de/tech/webdav/rfc7230.html#message.body.length
-		 */
-		if(
-			this._statusCode < 200
-			|| this._statusCode === 204
-			|| this._statusCode === 304
-			|| this._bodyLength === 0
-		){
-			this.emit(EVT_BODY_CHUNK, EMPTY_BUFFER, true);
+						if(
+							this._statusCode < 200
+							|| this._statusCode === 204 // The spec says that 204 MUST NOT have a body because it's a response to a HEAD request
+							|| this._statusCode === 304 // The spec says that 304 MUST NOT have a body
+							|| this._statusCode === 302 && this.expectedBodySize === undefined
+							|| this._statusCode === 307 && this.expectedBodySize === undefined
+						){
+							this._bodyLength = 0;
+							this._completed.body = true;
+						}
+					}else{
+						this._currentSymbol += String.fromCharCode(byte);
+					}
 
-			// If we have data, we still must parse it. It probably belongs to another response.
-			if(data.length > 0){
-				this._feed(data);
-			}
+					continue;
+				}else if(!this._completed.statusMessage){
+					if(byte === CHAR_NEW_LINE && prevByte === CHAR_CARRIAGE_RETURN){
+						this._statusMessage = this._currentSymbol;
+						this._completed.statusMessage = true;
+						this._currentSymbol = '';
+					}else if(byte !== CHAR_CARRIAGE_RETURN){
+						this._currentSymbol += String.fromCharCode(byte);
+					}
 
-			return true;
-		}
-
-		if(this._bodyChunked){
-			return this._parseChunkedBody(data);
-		}else if(this._bodyLength !== undefined){
-			return this._parseFixedBody(data);
-		}else{
-			return this._parseBodyUntilClose(data);
-		}
-	}
-
-	_parseFixedBody(data){
-		const remainsToRead = this._bodyLength - this._bodyRead;
-		const dataToRead = Math.min(data.length, remainsToRead);
-
-		this._bodyRead += dataToRead;
-
-		const isLast = this._bodyRead === this._bodyLength;
-		if(dataToRead > 0){
-			this.emit(EVT_BODY_CHUNK, data.subarray(0, dataToRead), isLast);
-		}
-
-		if(isLast && data.length > dataToRead){
-			this._feed(data.subarray(dataToRead));
-		}
-
-		return isLast;
-	}
-
-	_resetChunk(){
-		this._completed.chunk.header = false;
-		this._completed.chunk.body = false;
-
-		this._bodyChunkRead = 0;
-		this._bodyChunkSize = undefined;
-		this._currentSymbol = '';
-	}
-
-	_handleChunkedBodyEnd(){
-		if(this._currentSymbol.length === 0){
-			const error = new Error('FATAL HTTP response error: chunk size not specified.');
-			error.code = 'E_INVALID_CHUNK_SIZE';
-
-			this.emit(EVT_ERROR, error);
-
-			throw error;
-		}
-
-		this._bodyChunkSize = Number.parseInt(this._currentSymbol, 16);
-
-		if(Number.isNaN(this._bodyChunkSize)){
-			const error = new Error('FATAL HTTP response error: invalid chunk size.');
-			error.code = 'E_INVALID_CHUNK_SIZE';
-
-			this.emit(EVT_ERROR, error);
-
-			throw error;
-		}
-
-		this._currentSymbol = '';
-	}
-
-	_parseChunkedBody(data){
-
-		// We must skip the CRLF after the chunk body if any
-		// Since everytime a buffer is read, we re-adjust the buffer view, the CRLF will
-		// always be at the beginning of the buffer at this step.
-		if(this._completed.chunk.header && this._completed.chunk.body){
-			let nbToSKip = 0;
-
-			if(data[0] === CHAR_CARRIAGE_RETURN){
-				nbToSKip++;
-
-				if(data[1] === CHAR_NEW_LINE){
-					nbToSKip++;
-					this._encounteredEndOfLine++;
+					continue;
 				}
-			}else if(data[0] === CHAR_NEW_LINE){
-				nbToSKip++;
-				this._encounteredEndOfLine++;
-			}
 
-			if(nbToSKip > 0){
-
-				data = data.subarray(nbToSKip);
-				this._resetChunk();
-
-				// We finally encountered the last end of line
-				// the response body is complete
-				if(this._encounteredEndOfLine === 2){
-
-					this._reset();
-					if(data.length > 0) this._feed(data);
-
-					// We're done
-					return;
-				}
-			}
-		}
-
-		if(data.length === 0) return;
-
-		if(!this._completed.chunk.header && data.length > 0){
-			let i = 0;
-
-			// Parsing the chunk header
-			do{
-				const byte = data[i];
-				this._prevByte = byte;
-
-				i++;
-
+				// If we are here, it means that we are parsing the headers
 				switch(byte){
-					case CHAR_NEW_LINE:
-						this._encounteredEndOfLine++;
+					case CHAR_COLON:
+						this._encounteredEndOfLine = 0;
 
-						if(this._encounteredEndOfLine === 1 && !this._currentSymbol){
+						if(this._currentHeaderName) {
+							this._currentSymbol += ':'; // We add the colon back to the symbol
 							continue;
 						}
 
-						try{
-							this._handleChunkedBodyEnd();
-						}catch(err){
-							// We stop the parser and ask for a reset until all other async
-							// operations are finished
-							this.reset();
-							return;
-						}
+						this._currentHeaderName = this._currentSymbol.toLowerCase();
+						this._currentSymbol = '';
 
-						this._completed.chunk.header = true;
-
-						// If the chunk size is 0, we're (almost) done
-						if(this._bodyChunkSize === 0){
-							this._completed.body = true;
-							this._completed.chunk.body = true;
-
-							// We inform the listeners that the body is complete
-							this.emit(EVT_BODY_CHUNK, EMPTY_BUFFER, true);
-
-							// We still have data that belongs to the next response
-							if(data.length > i + 1){
-								this._reset();
-
-								// i + 2 to skip the CRLF
-								this._feed(data.subarray(i + 2));
-								return;
-							}
-						}
-
-						continue;
+						this._headers[this._currentHeaderName] = '';
+						break;
 					case CHAR_CARRIAGE_RETURN:
-						continue;
-					case CHAR_SEMICOLON:
+						break;
+					case CHAR_NEW_LINE:
+						this._encounteredEndOfLine++;
 
-						// We reach a semicolon. For the first one, what follows is the chunk extension, which we don't
-						// support. All subsequent semicolons separate other extensions. We just ignore all of them.
-						if(this._bodyChunkSize !== undefined){
-							try{
-								this._handleChunkedBodyEnd();
-							}catch(err){
-								// We stop the parser and ask for a reset until all other async
-								// operations are finished
-								this.reset();
-								return;
+						if(this._encounteredEndOfLine === 1){
+							this._headers[this._currentHeaderName] = this._currentSymbol;
+							this._currentHeaderName = '';
+							this._currentSymbol = '';
+						} else if(this._encounteredEndOfLine === 2){
+							this._encounteredEndOfLine = 0;
+							this._completed.headers = true;
+
+							if(HEADER_TRANSFER_ENCODING in this._headers){
+								this._headers[HEADER_TRANSFER_ENCODING] = this._headers[HEADER_TRANSFER_ENCODING].toLowerCase();
+								this._bodyLength = undefined;
+								this._bodyChunked = this._headers[HEADER_TRANSFER_ENCODING].indexOf('chunked') !== -1;
+
+								// As per RFC 7230, section 3.3.3, we should ignore the content-length header if the
+								// transfer-encoding header is present
+								delete this._headers[HEADER_CONTENT_LENGTH];
 							}
+
+							if(!this._bodyChunked && HEADER_CONTENT_LENGTH in this._headers){
+								this._headers[HEADER_CONTENT_LENGTH] = Number.parseInt(this._headers[HEADER_CONTENT_LENGTH]);
+
+								// As per RFC 7230, section 3.3.2, we should close the connection if the content-length
+								// header is not a valid number
+								if(Number.isNaN(this._headers[HEADER_CONTENT_LENGTH])){
+									const error = new Error('FATAL HTTP response error: invalid content-length. The connection MUST be closed.');
+									error.code = 'E_INVALID_CONTENT_LENGTH';
+
+									this.emit(EVT_ERROR, error);
+
+									// We stop the parser and ask for a reset until all other async
+									// operations are finished
+									this.reset();
+								}
+
+								this._bodyLength = this._headers[HEADER_CONTENT_LENGTH];
+							}
+
+							// We notify listeners in which mode we will read the body
+							// it's important in pipelined connections, because if we're in UNTIL_CLOSE
+							// mode and are using pipelining, the pipeline will be broken.
+							// Therefor, it must be immediately closed.
+							if(!this._bodyChunked && this._bodyLength === undefined){
+								this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.UNTIL_CLOSE);
+							}else if(this._bodyChunked){
+								this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.CHUNKED);
+							}else if(this._bodyLength !== undefined){
+								this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.FIXED, this._bodyLength);
+							}
+
+							this._currentHeaderName = '';
+
+							this.emit(
+								EVT_HEADERS,
+								{
+									headers: this._headers,
+									statusCode: this._statusCode,
+									statusMessage: this._statusMessage,
+									version: this._version
+								}
+							);
 						}
-						continue;
+						break;
 					default:
 						this._encounteredEndOfLine = 0;
 
-						// We don't have the body chunk size yet, so we're still waiting for the
-						// full length as a hex string
-						if(this._bodyChunkSize === undefined){
-							this._currentSymbol += String.fromCharCode(byte);
+						// We don't need the first space into the header value
+						if(!this._currentSymbol && byte === CHAR_SPACE && prevByte === CHAR_COLON){
+							continue;
 						}
-				}
-			}while(i < data.length && !this._completed.chunk.header);
 
-			if(i === data.length){
-				return false;
-			}else{
-				data = data.subarray(i);
-			}
-		}
-
-		if(this._completed.chunk.header && !this._completed.chunk.body){
-			this._encounteredEndOfLine = 0;
-
-			const remainsToRead = this._bodyChunkSize - this._bodyChunkRead;
-			const dataToRead = Math.min(data.length, remainsToRead);
-
-			if(dataToRead === 0) return false;
-
-			this._bodyRead += dataToRead;
-			this._bodyChunkRead += dataToRead;
-
-			this.emit(EVT_BODY_CHUNK, data.subarray(0, dataToRead), false);
-
-			if(this._bodyChunkRead === this._bodyChunkSize){
-				this._completed.chunk.body = true;
-
-				if(dataToRead < data.length){
-					this._feed(data.subarray(dataToRead));
+						this._currentSymbol += String.fromCharCode(byte);
+						break;
 				}
 			}
+			else if(this._bodyLength === 0){
+				/**
+				 * No body, we're done
+				 */
 
-			return false;
-		}
-	}
-
-	_parseBodyUntilClose(data){
-		/**
-		 * In this mode, isLast will always be false, because we don't know when the body will end.
-		 * The listener must determine response end by listening to the connection close event.
-		 */
-		this.emit(EVT_BODY_CHUNK, data, false);
-
-		return false;
-	}
-
-	_parse(data){
-		if(this._completed.headers){
-			if(this._parseBody(data)){
+				this.emit(EVT_BODY_CHUNK, EMPTY_BUFFER, true);
 				this._reset();
+			}else if(this._bodyChunked) {
+				/**
+				 * BODY_READ_MODE.CHUNKED
+				 * ----------------------
+				 * In this mode, we must read the chunk size, then read the chunk data, then read the
+				 * chunk terminator (CRLF), then read the next chunk size, and so on.
+				 */
+
+				if(this._completed.chunk.body){
+					switch(byte){
+						case CHAR_CARRIAGE_RETURN:
+							continue;
+						case CHAR_NEW_LINE:
+							this._resetChunk();
+					}
+				}else if(!this._completed.chunk.header){
+					switch(byte){
+
+						// We ignore carriage return characters
+						case CHAR_CARRIAGE_RETURN:
+							continue;
+
+						case CHAR_SEMICOLON:
+							this._completed.chunk.extension = true;
+							continue;
+
+						// We have a newline character, it means that we have the chunk size
+						case CHAR_NEW_LINE:
+							this._encounteredEndOfLine++;
+
+							this._completed.chunk.header = true;
+
+							if(this._currentSymbol.length === 0){
+								console.log(this);
+								const error = new Error('FATAL HTTP response error: chunk size not specified.');
+								error.code = 'E_INVALID_CHUNK_SIZE';
+
+								this.emit(EVT_ERROR, error);
+								this.reset();
+
+								return;
+							}
+
+							this._bodyChunkSize = Number.parseInt(this._currentSymbol, 16);
+
+							if(Number.isNaN(this._bodyChunkSize)){
+								const error = new Error('FATAL HTTP response error: invalid chunk size.');
+								error.code = 'E_INVALID_CHUNK_SIZE';
+
+								this.emit(EVT_ERROR, error);
+								this.reset();
+
+								return;
+							}
+
+							this._currentSymbol = '';
+
+							if(this._bodyChunkSize === 0){
+								this._completed.body = true;
+								this._completed.chunk.body = true;
+
+								// We inform the listeners that the body is complete
+								this.emit(EVT_BODY_CHUNK, EMPTY_BUFFER, true);
+
+								this._reset();
+							}
+
+							continue;
+
+						// We're still parsing the chunk header
+						default:
+							if(!this._completed.chunk.extension){
+								this._currentSymbol += String.fromCharCode(byte);
+							}
+					}
+				}else if(!this._completed.chunk.body){
+					this._encounteredEndOfLine = 0;
+
+					const remainsToRead = this._bodyChunkSize - this._bodyChunkRead;
+					const dataToRead = Math.min(data.length, i + remainsToRead) - i;
+
+					if(dataToRead === 0) return false;
+
+					this._bodyRead += dataToRead;
+					this._bodyChunkRead += dataToRead;
+
+					this.emit(EVT_BODY_CHUNK, data.subarray(i, i + dataToRead), false);
+
+					if(this._bodyChunkRead === this._bodyChunkSize){
+						this._completed.chunk.body = true;
+					}
+
+					// We jump to the next chunk
+					i+= dataToRead;
+				}else{
+					switch(byte){
+						case CHAR_CARRIAGE_RETURN:
+							continue;
+						case CHAR_NEW_LINE:
+							this._encounteredEndOfLine++;
+					}
+				}
+			}else if(this._bodyLength !== undefined){
+				/**
+				 * BODY_READ_MODE.FIXED
+				 * --------------------
+				 * In this mode, we must read the body until we reach the content-length.
+				 */
+
+				const remainsToRead = this._bodyLength - this._bodyRead;
+				const dataToRead = Math.min(data.length, i + remainsToRead) - i;
+
+				this._bodyRead += dataToRead;
+
+				const isLast = this._bodyRead === this._bodyLength;
+				if(dataToRead > 0){
+					this.emit(EVT_BODY_CHUNK, data.subarray(i, i + dataToRead), isLast);
+
+					i+= dataToRead;
+
+					if(isLast){
+						this._reset();
+					}
+				}
+			}else{
+				/**
+				 * BODY_READ_MODE.UNTIL_CLOSE
+				 * --------------------------
+				 * In this mode, isLast will always be false, because we don't know when the body will end.
+				 * The listener must determine response end by listening to the connection close event.
+				 */
+				this.emit(EVT_BODY_CHUNK, data, false);
 			}
-		} else {
-			this._parseHeaders(data);
 		}
-	}
-
-	_feed(data){
-		process.nextTick(() => {
-			this._parse(data);
-		});
-	}
-
-	feed(data){
-		if(data.length === 0) return;
-
-		setImmediate(() => {
-			this._parse(data);
-		});
 	}
 
 	/**
@@ -520,7 +409,8 @@ class Parser extends EventEmitter{
 			body: false,
 			chunk: {
 				header: false,
-				body: false
+				body: false,
+				extension: false
 			}
 		}
 		this._statusCode = 0;
@@ -542,6 +432,16 @@ class Parser extends EventEmitter{
 		this._prevByte = undefined;
 	}
 
+	_resetChunk(){
+		this._completed.chunk.header = false;
+		this._completed.chunk.body = false;
+		this._completed.chunk.extension = false;
+
+		this._bodyChunkRead = 0;
+		this._bodyChunkSize = undefined;
+		this._currentSymbol = '';
+	}
+
 	/**
 	 * Force a parser reset. This is useful when a connection is closed while a response
 	 * is being parsed. It will prevent the parser to stay in an inconsistent state.
@@ -559,13 +459,8 @@ class Parser extends EventEmitter{
 	 *          You must wait for the 'reset' event to be sure to be in a consistent fresh state.
 	 */
 	reset(){
-
-		// Since everything is async, we must ensure the reset is processed after current running
-		// async jobs.
-		setImmediate(() => {
-			this._reset();
-			this.emit(EVT_RESET);
-		});
+		this._reset();
+		this.emit(EVT_RESET);
 	}
 }
 

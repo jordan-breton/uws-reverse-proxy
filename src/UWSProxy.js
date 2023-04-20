@@ -494,8 +494,12 @@ class UWSProxy {
 		const { headers: optsHeaders } = this._opts;
 
 		uwsResponse.onAborted(() => {
+			uwsResponse.aborted = true;
 			// We just destroy the body stream if any. We can't abort the request because
 			// it's pipelined. So we will just ignore the response when we'll get it.
+			// Also, we don't do anything there but we need to attach this handler
+			// to avoid a uWebSockets.js core dump, since attaching abort handler is
+			// mandatory.
 		});
 
 		this._httpClient.request({
@@ -557,7 +561,6 @@ class UWSProxy {
 				break;
 
 			default:
-				console.log(error);
 
 				// In every other case the response is invalid for a reason or another.
 				response.headers['status code'] = "502 Bad Gateway";

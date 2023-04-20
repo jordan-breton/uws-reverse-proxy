@@ -173,10 +173,10 @@ describe('HTTP responses parser', () => {
 
 				setImmediate(() => {
 					parser.feed(Buffer.from(RESPONSES.SIMPLE_CHUNKED));
-				});
+				})
 			});
 
-			it('Must emit 2 "body_chunk" events. The first one with the body content, the next one empty with isLast = true', done => {
+			it('Must emit 2 "body_chunk" events. The first one with data, the last one empty with isLast = true', done => {
 				parser.on('body_chunk', (data, isLast) => {
 					try{
 						if(isLast){
@@ -772,14 +772,14 @@ describe('HTTP responses parser', () => {
 
 		});
 
-		describe(`Mixed chunked / fixed length, ${NB_RESPONSES} responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
+		describe(`Mixed chunked / fixed length, ${NB_RESPONSES*2} responses, arbitrary cut in ${NB_CHUNKS} chunks`, () => {
 			let parser;
 
 			beforeEach(() => {
 				parser = new Parser();
 
 				setImmediate(() => {
-					const fullResponse = Buffer.from((RESPONSES.SIMPLE_CHUNKED_2 + RESPONSES.SIMPLE_FIXED).repeat(10));
+					const fullResponse = Buffer.from((RESPONSES.SIMPLE_CHUNKED_2 + RESPONSES.SIMPLE_FIXED).repeat(NB_RESPONSES));
 					const chunkSize = Math.ceil(fullResponse.length / NB_CHUNKS);
 
 					for(let i = 0; i < NB_CHUNKS; i++){
@@ -792,7 +792,7 @@ describe('HTTP responses parser', () => {
 				});
 			});
 
-			it(`Must emit "body_chunk" events until ${NB_RESPONSES} "Hello World! have been received.".`, done => {
+			it(`Must emit "body_chunk" events until ${NB_RESPONSES*2} "Hello World! have been received.".`, done => {
 
 				let nb = 0,
 					body = '',
@@ -808,8 +808,8 @@ describe('HTTP responses parser', () => {
 							aggregatedBodies += body;
 							body = '';
 
-							if(nb === NB_RESPONSES){
-								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES));
+							if(nb === NB_RESPONSES*2){
+								assert.strictEqual(aggregatedBodies, 'Hello World!'.repeat(NB_RESPONSES*2));
 								done();
 							}
 						}
@@ -838,7 +838,7 @@ describe('HTTP responses parser', () => {
 		});
 	});
 
-	describe('Error handling and emission', () => {
+	describe('Error handling and emitting', () => {
 
 		let parser;
 

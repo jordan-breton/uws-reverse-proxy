@@ -126,7 +126,7 @@ class Sender {
 				 */
 
 				socket.destroy(Buffer.alloc(headers['content-length'] - context.written));
-			}else if(headers['content-encoding'] === 'chunked'){
+			}else if(headers['transfer-encoding'] === 'chunked'){
 				/**
 				 * @FIXME I suspect that this is not the right way to handle this.
 				 *   We may have to compensate for the chunk size if it has only been partially received

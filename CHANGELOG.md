@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - Huge performance issue (see #2) with a custom HTTP Client & HTTP Response parser
-    - Still a lot of work to do to improve the performances
+    - There is still room for improvement, but it's now more than acceptable.
 
 ## 3.1.1 - 2023-03-23
 ### Changed

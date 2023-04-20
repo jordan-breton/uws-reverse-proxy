@@ -1,6 +1,6 @@
 /**
  * @interface IResponseParser
- * @extends {EventEmitter}
+ * @extends {module:events.EventEmitter}
  * @property {int} expectedBodySize
  */
 

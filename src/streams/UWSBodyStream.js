@@ -11,8 +11,6 @@ const { Buffer } = require('buffer');
  * @private
  */
 
-// TODO: delete createBufferCopy, and use Uint8Array instead of Buffer
-
 /** *
  * Translate a uWebSockets.js body data stream into a Readable stream, taking backpressure
  * into consideration.

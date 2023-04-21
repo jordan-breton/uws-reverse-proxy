@@ -84,6 +84,11 @@ const UWS_SSL_KEYS = [
  */
 
 /**
+ * HTTPClient configuration options.
+ * @typedef {import("./http/Client.js").UWSClientOpts} UWSClientOpts
+ */
+
+/**
  * uWebSockets.js configuration options for UWSProxy's constructor.
  * @see {UWSProxy.createUWSConfig}
  * @typedef UWSProxyUWSConfigOpts

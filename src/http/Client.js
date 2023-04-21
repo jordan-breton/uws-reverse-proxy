@@ -1,14 +1,31 @@
-const Connection = require('./Connection');
-const RequestSender = require("./1.1/Sender");
+// region Imports
+
+const Parser = require("./1.1/Parser");
 const Pipeline = require("./1.1/strategies/Pipeline");
 const Sequential = require("./1.1/strategies/Sequential");
-const Parser = require("./1.1/Parser");
+const Connection = require('./Connection');
+const RequestSender = require("./1.1/Sender");
+
+// endregion
+
+// region Private functions
 
 function selectConnectionIn(array){
 	return array[Math.floor(Math.random() * array.length)];
 }
 
+// endregion
+
+/**
+ * HTTP client API. It acts as a Connection pool and randomly distribute the load between connections.
+ *
+ * It uses pipelining by default for HTTP/1.1.
+ *
+ * Sequential mode is not supported yet.
+ */
 class Client{
+
+	// region Private properties
 
 	/**
 	 * @type {Map<string, Connection[]>}
@@ -21,14 +38,68 @@ class Client{
 	 */
 	_pendingConnections = new Map();
 
+	/**
+	 * @type {int} Max number of connections by host.
+	 * @private
+	 */
 	_maxConnectionsByHost;
+
+	/**
+	 * @type {int} Max number of pipelined requests by connection.
+	 * @private
+	 */
 	_maxPipelinedRequestsByConnection;
+
+	/**
+	 * @type {int} Timeout in ms for a connection to be considered as dead.
+	 * @private
+	 */
 	_connectionTimeout;
+
+	/**
+	 * @type {int} Interval in ms to check for dead connections.
+	 * @private
+	 */
 	_connectionWatcherInterval;
+
+	/**
+	 * @type {NodeJS.Timer} Interval handle for the connection watcher, allowing to call clearInterval
+	 * @private
+	 */
 	_connectionWatcherHandle;
+
+	/**
+	 * @type {boolean} True if the client is closed.
+	 * @private
+	 */
 	_closed;
+
+	/**
+	 * @type {boolean} True if pipelining is enabled.
+	 * @private
+	 */
 	_pipelining;
 
+	/**
+	 * @type {int} Max number of stacked buffers under backpressure when sending request body
+	 * to the target server.
+	 * @private
+	 */
+	_maxStackedBuffers;
+
+	// endregion
+
+	/**
+	 * @param {Object} [options]
+	 * @param {boolean} [options.pipelining=true] Enable pipelining. False is not supported yet.
+	 * @param {number} [options.connectionTimeout=5000] Timeout in ms for a connection to be considered as dead.
+	 * @param {number} [options.maxConnectionsByHost=10] Max number of connections by host.
+	 * @param {number} [options.connectionWatcherInterval=1000] Interval in ms to check for dead connections.
+	 * @param {number} [options.maxPipelinedRequestsByConnection=100000] Max number of pipelined requests by connection.
+	 * @param {number} [options.maxStackedBuffers=4096] Max number of stacked buffers under backpressure when sending
+	 *                                                  request body to the target server. If this number is reached,
+	 *                                                  the request is aborted.
+	 */
 	constructor(
 		{
 			pipelining = true,
@@ -36,12 +107,14 @@ class Client{
 			maxConnectionsByHost = 10,
 			connectionWatcherInterval = 1000,
 			maxPipelinedRequestsByConnection = 100000,
+			maxStackedBuffers = 4096
 		} = {}
 	){
 		this._pipelining = pipelining;
 		this._connections = new Map();
 		this._pendingConnections = new Map();
 		this._connectionTimeout = connectionTimeout;
+		this._maxStackedBuffers = maxStackedBuffers;
 		this._maxConnectionsByHost = maxConnectionsByHost;
 		this._connectionWatcherInterval = connectionWatcherInterval;
 		this._maxPipelinedRequestsByConnection = maxPipelinedRequestsByConnection;
@@ -57,8 +130,17 @@ class Client{
 		}, this._connectionWatcherInterval);
 	}
 
-	_createConnection(options){
-		const key = `${options.host}:${options.port}`;
+	// region Private methods
+
+	/**
+	 * Create a new connection. If the max number of connections by host is reached, it will select
+	 * a random connection to return.
+	 * @param {Request} request
+	 * @return {Promise<Connection>}
+	 * @private
+	 */
+	_createConnection(request){
+		const key = `${request.host}:${request.port}`;
 
 		const nbConnections = this._connections.has(key) ? this._connections.get(key).length : 0;
 		const nbPendingConnections = this._pendingConnections.has(key) ? this._pendingConnections.get(key).length : 0;
@@ -106,10 +188,13 @@ class Client{
 			: new Sequential();
 
 		const connection = new Connection(
-			options,
+			request,
 			responseParser,
 			new RequestSender(
-				sendingStrategy
+				sendingStrategy,
+				{
+					maxStackedBuffers: this._maxStackedBuffers
+				}
 			)
 		);
 
@@ -133,27 +218,26 @@ class Client{
 	}
 
 	/**
-	 * Returns a connection for the given host and port.
-	 * @param options
+	 * Returns a connection for the given host and port. It creates new connection for each host/port
+	 * pair until the max number of connections is reached. Then it returns the first available connection
+	 * for subsequent requests.
+	 * @param {Request} request
 	 * @return {Promise<Connection>}
 	 */
-	async _getConnection(options){
-		const host = options.host || 'localhost';
-		const port = options.port || 80;
+	async _getConnection(request){
+		const host = request.host || 'localhost';
+		const port = request.port || 80;
 
 		const key = `${host}:${port}`;
 		const connections = this._connections.get(key) || /** @type {Connection} */[];
 
 		// Overtime we create as many connections as allowed.
 		// pipelining is great but suffers from head-of-line blocking.
-		// We want to avoid it as much as possible.
-		let connection = await this._createConnection(options);
+		// We want to avoid it as much as possible, or at least to mitigate it.
+		let connection = await this._createConnection(request);
 		if(connection) return connection;
 
-		// TODO: store connection promises somewhere to mage subsequent call to getConnection
-		// wait on the same connections without having to attach listeners.
-
-		// We may have a most efficient option here, but this array should not be alrge
+		// We may have a most efficient options here, but this array should not be large
 		// enough to be a bottleneck.
 		/** @type {Connection[]} */
 		const availableConnections = connections.filter(c => c.isAvailable());
@@ -170,23 +254,37 @@ class Client{
 		return selectConnectionIn(availableConnections);
 	}
 
+	// endregion
+	// region Public methods
+
 	/**
-	 * Makes an HTTP request
-	 * @param options
+	 * Makes an HTTP request and calls the callback when the response is received or
+	 * an error occurs.
+	 *
+	 * Note: you can't get the response body. You'll only get the request, the response headers, status and status text
+	 * and/or the error if any. The response is streamed directly to the Request.response object for performance reasons.
+	 * @param {Request} request
 	 * @param {sendCallback} callback
 	 */
-	request(options, callback){
-		//console.log(options);
-
+	request(request, callback){
 		if(this._closed){
 			throw new Error('Client is closed. Create a new one to make more requests.');
 		}
 
-		this._getConnection(options).then(connection => {
-			connection.send(options, callback);
+		this._getConnection(request).then(connection => {
+			connection.send(request, callback);
+		}).catch(err => {
+			callback(err);
 		});
 	}
 
+	/**
+	 * Close the client and all its pending connections. Force all pending requests to abort.
+	 *
+	 * If host and port are provided, only the connections to the given host and port will be closed.
+	 * @param {string|null} [host]
+	 * @param {number|string|null} port
+	 */
 	close(host = null, port = null){
 		this._closed = true;
 
@@ -213,6 +311,8 @@ class Client{
 
 		clearInterval(this._connectionWatcherHandle);
 	}
+
+	// endregion
 }
 
 module.exports = Client;

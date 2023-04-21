@@ -149,20 +149,25 @@ const UWS_SSL_KEYS = [
  *
  * You may want to take those NodeJS error codes into consideration:
  *
- * - ECONNRESET
- * - ECONNABORT
- * - ECONNREFUSED
- * - ETIMEDOUT
+ * - **ECONNRESET**
+ * - **ECONNABORT**
+ * - **ECONNREFUSED**
+ * - **ETIMEDOUT**
  *
- * Note that you can receive any ReadableStream, WritableStream, IncomingMessage, OutgoingMessage, uWebSocket.js:HttpResponse,
- * uWebSocket.js:HttpRequest error that **may** contain an error code.
+ * See [NodeJS Error Codes](https://nodejs.org/api/errors.html#errors_common_system_errors) for more information.
  *
- * The proxy may give you two custom codes:
+ * The proxy may give you some custom codes:
  *
- * - EBODYSTREAM: the request body can't be sent to the server or an error occurred while transferring.
- *                In this scenario, the original error is passed to the Error constructor as cause,
- *                and the original error code (if any) can be found in error.original_error.
- * - ERECIPIENTABORTED: the recipient server received the request but aborted either with partial or no response at all.
+ * - **E_RECIPIENT_ABORTED**: the recipient server aborted either with partial or no response at all. It
+ *   may or may not have received the request.
+ *   In this scenario, the original error is passed to the Error constructor as cause,
+ *   and the original error code (if any) can be found in error.original_error.
+ * - **E_PIPELINE_ABORTED**: the pipeline was aborted before the request was sent to the recipient server,
+ *   or before the response was received from the recipient server.
+ * - **E_PIPELINE_OVERFLOW**: the pipeline aborted because the number of requests it received exceeded.
+ *   increase maxPipelinedRequestsByConnection or maxConnectionsByHost to avoid this error
+ * - **E_INVALID_CONTENT_LENGTH**: The response parser received a Content-Length header with an invalid value.
+ * - **E_INVALID_CHUNK_LENGTH**: The response parser received a chunk length with an invalid value.
  * @param {Error} error
  * @param {UWSDecodedRequest} decodedRequest
  * @return {UWSProxyErrorResponse|void|Promise<UWSProxyErrorResponse|void>}
@@ -363,6 +368,10 @@ class UWSProxy {
 	 */
 	_opts;
 
+	/**
+	 * @type {Client}
+	 * @private
+	 */
 	_httpClient;
 
 	// endregion
@@ -494,12 +503,10 @@ class UWSProxy {
 		const { headers: optsHeaders } = this._opts;
 
 		uwsResponse.onAborted(() => {
-			uwsResponse.aborted = true;
+
 			// We just destroy the body stream if any. We can't abort the request because
 			// it's pipelined. So we will just ignore the response when we'll get it.
-			// Also, we don't do anything there but we need to attach this handler
-			// to avoid a uWebSockets.js core dump, since attaching abort handler is
-			// mandatory.
+			uwsResponse.aborted = true;
 		});
 
 		this._httpClient.request({
@@ -541,31 +548,37 @@ class UWSProxy {
 			case 'ECONNRESET':
 			case 'ECONNABORTED':
 			case 'ECONNREFUSED':
-				response.headers.status = "503 Service Unavailable";
+			case 'E_PIPELINE_OVERFLOW':
+				response.status = "503 Service Unavailable";
 				response.body = `Unable to forward the request to the server (${error.code}).`;
 				break;
 
-			case 'EBODYSTREAM':
-				response.headers.status = "503 Service Unavailable";
-				response.body = `Unable to forward your request body to the server (${error.code}: ${error.original_code}).`
-				break;
-
 			case 'ETIMEDOUT':
-				response.headers.status = "504 Gateway Timeout";
+				response.status = "504 Gateway Timeout";
 				response.body = `No response received from the server in ${this._opts.timeout}ms: request aborted (${error.code}).`;
 				break;
 
-			case 'ERECIPIENTABORTED':
-				response.headers.status = "502 Bad Gateway";
+			case 'E_PIPELINE_ABORTED':
+				response.status = "502 Bad Gateway";
+				response.body = `The request have been aborted by the proxy (${error.code}).`;
+				break;
+
+			case 'E_RECIPIENT_ABORTED':
+				response.status = "502 Bad Gateway";
 				response.body = `The recipient server aborted the proxy request (${error.code}).`;
+				break;
+
+			case 'E_INVALID_CONTENT_LENGTH':
+			case 'E_INVALID_CHUNK_LENGTH':
+				response.status = "502 Bad Gateway";
+				response.body = `The proxy received a malformed or incomplete response from the server (${error.code}).`;
 				break;
 
 			default:
 
 				// In every other case the response is invalid for a reason or another.
-				response.headers['status code'] = "502 Bad Gateway";
-				response.body = `The proxy received a malformed or incomplete response from the server,`
-					+ ` or encountered a non-handled error (${error.code}).`
+				response.status = "502 Bad Gateway";
+				response.body = `The proxy encountered a non-handled error (${error.code}).`
 		}
 
 		return response;
@@ -631,6 +644,9 @@ class UWSProxy {
 					errorResponse || this._buildErrorResponse(error)
 				);
 			}).catch(err => {
+
+				// This should not happen, that's why we force a print to the console. If you want
+				// remove this print, you must ensure your errorHandler is not throwing any error.
 				console.error('UWSProxy: error thrown in error handler: ', err);
 				this._tryToSendErrorResponse(uwsResponse, this._buildErrorResponse(error));
 			});

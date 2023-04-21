@@ -1,4 +1,6 @@
 /**
+ * Send a request on a raw TCP/UDP socket.
+ *
  * @interface IRequestSender
  * @extends EventEmitter
  */
@@ -21,10 +23,13 @@
 
 /**
  * @typedef {Object} Response
+ * @property {string} status
+ * @property {string} statusMessage
  * @property {Request} request
  * @property {Object} headers
- * @property {boolean} stale True when the response have been aborted
- * @property {sendCallback} callback
+ * @property {boolean} stale True when the response have been aborted for example. It allows to know
+ *  if we still write into the response or just ignore the target server data (or even close the connection).
+ * @property {sendCallback} callback The callback that will be called when the
  */
 
 /**
@@ -49,5 +54,6 @@
 
 /**
  * @function
- * @name IRequestSender_close
+ * @name IRequestSender#close
+ * @param {Error} [err]
  */

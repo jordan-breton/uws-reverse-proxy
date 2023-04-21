@@ -37,8 +37,9 @@ const BODY_READ_MODE = {
  * - error: when an error occurs
  *
  * Error codes:
- * - E_INVALID_CONTENT_LENGTH: when the content-length header is evaluated to NaN by Number
- * - E_INVALID_CHUNK_SIZE: when the chunk size is missing or is evaluated to NaN by Number.parseInt(,16)
+ *
+ * - **E_INVALID_CONTENT_LENGTH**: when the content-length header is evaluated to NaN by Number
+ * - **E_INVALID_CHUNK_SIZE**: when the chunk size is missing or is evaluated to NaN by Number.parseInt(,16)
  *
  * Among the above errors, the parser CAN'T RECOVER from E_INVALID_CONTENT_LENGTH and E_INVALID_CHUNK_SIZE.
  * THose errors are fatal and must lead to a connection close and a parser reset.
@@ -432,6 +433,10 @@ class Parser extends EventEmitter{
 		this._prevByte = undefined;
 	}
 
+	/**
+	 * Resets the chunk parser to its initial state.
+	 * @private
+	 */
 	_resetChunk(){
 		this._completed.chunk.header = false;
 		this._completed.chunk.body = false;
@@ -452,11 +457,6 @@ class Parser extends EventEmitter{
 	 * If it happens to a connection used for pipelining, YOU MUST IMMEDIATELY CLOSE THE SAID
 	 * CONNECTION. Otherwise, the parser will consider every following responses to belong to the same
 	 * body.
-	 *
-	 * @warning Data that are being processed when calling this method will be fully processed
-	 *          anyway due to the async nature of the parser.
-	 *          The reset will occur after all current data have been processed.
-	 *          You must wait for the 'reset' event to be sure to be in a consistent fresh state.
 	 */
 	reset(){
 		this._reset();

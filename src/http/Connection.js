@@ -8,6 +8,24 @@ const { EventEmitter } = require('events');
 // endregion
 
 /**
+ * @typedef {Object} UWSConnectionOpts
+ * @property {string} host The target server host
+ * @property {number} port The target server port
+ * @property {string} [servername] The servername used for SNI
+ * @property {boolean} [isSecure] True if the connection should be secure
+ * @property {boolean} [rejectUnauthorized] True if the connection should reject unauthorized certificates
+ * @property {number} [highWaterMark=16*1024] The highWaterMark used for the socket
+ * @property {string} [key] The key used for the TLS connection
+ * @property {string} [cert] The certificate used for the TLS connection
+ * @property {string} [ca] The certificate authority used for the TLS connection
+ * @property {number} [keepAlive=5000] The keep-alive interval in ms
+ * @property {number} [keepAliveInitialDelay=1000] The keep-alive initial delay in ms
+ * @property {number} [maxReopenAttempts=3] Max number of attempts to reopen a connection
+ * @property {number} [reopenDelay=1000] Delay in ms between each attempt to reopen a connection
+ *
+ */
+
+/**
  * Open and manage a raw socket connection to a server. Work either with the net or tls module depending
  * on the configuration
  *
@@ -108,21 +126,12 @@ class Connection extends EventEmitter{
 	// endregion
 
 	/**
-	 * @param {Object} connectionConfig
-	 * @param {string} connectionConfig.host The target server host
-	 * @param {number} connectionConfig.port The target server port
-	 * @param {string} [connectionConfig.servername] The servername used for SNI
-	 * @param {boolean} [connectionConfig.isSecure] True if the connection should be secure
-	 * @param {boolean} [connectionConfig.rejectUnauthorized] True if the connection should reject unauthorized certificates
-	 * @param {number} [connectionConfig.highWaterMark] The highWaterMark used for the socket
-	 * @param {string} [connectionConfig.key] The key used for the TLS connection
-	 * @param {string} [connectionConfig.cert] The certificate used for the TLS connection
-	 * @param {string} [connectionConfig.ca] The certificate authority used for the TLS connection
+	 * @param {UWSConnectionOpts} opts
 	 * @param {IResponseParser} responseParser The parser used to decode the target server responses
 	 * @param {IRequestSender} requestSender The sender used to send requests to the target server
 	 */
 	constructor(
-		connectionConfig,
+		opts,
 		responseParser,
 		requestSender
 	){
@@ -142,7 +151,7 @@ class Connection extends EventEmitter{
 			key,
 			cert,
 			ca
-		} = connectionConfig;
+		} = opts;
 
 		this._config = {
 			host,

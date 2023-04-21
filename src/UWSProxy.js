@@ -34,6 +34,7 @@ const UWS_SSL_KEYS = [
  * @property {int}            [port=35974] Default: `35974` - Private port the HTTP server must listen to
  * @property {string}         [host="127.0.0.1"] Default: `'127.0.0.1'` - HTTP host. Default is the loop-back address.
  * @property {boolean}        [quiet=false] Default: `false` - Disable configuration warning printing
+ * @property {UWSClientOpts}  [client] Default: `undefined` - HTTP client configuration
  */
 
 /**
@@ -43,6 +44,7 @@ const UWS_SSL_KEYS = [
  * @property {'http'|'https'} protocol HTTP protocol
  * @property {int}            port     Listening port
  * @property {string}         host     HTTP host
+ * @property {UWSClientOpts}  client
  */
 
 /**
@@ -251,6 +253,7 @@ class UWSProxy {
 			host = '127.0.0.1',
 			protocol = 'http',
 			quiet = false,
+			client = {}
 		} = config || {};
 
 		if(
@@ -268,7 +271,8 @@ class UWSProxy {
 			config,
 			host,
 			port,
-			protocol
+			protocol,
+			client: client || {}
 		};
 	}
 
@@ -419,7 +423,7 @@ class UWSProxy {
 			}
 		};
 
-		this._httpClient = new HTTPClient();
+		this._httpClient = new HTTPClient(httpConfig.client);
 	}
 
 	// region Getters

@@ -14,6 +14,17 @@ const RequestSender = require("./1.1/Sender");
  * @type {import('../../IRequestSender').Request} Request
  */
 
+/**
+ * @typedef {Object} UWSClientOpts
+ * @property {boolean} [pipelining=true] Enable pipelining. False is not supported yet.
+ * @property {number} [connectionTimeout=5000] Timeout in ms for a connection to be considered as dead.
+ * @property {number} [maxConnectionsByHost=10] Max number of connections by host.
+ * @property {number} [connectionWatcherInterval=1000] Interval in ms to check for dead connections.
+ * @property {number} [maxPipelinedRequestsByConnection=100000] Max number of pipelined requests by connection.
+ * @property {number} [maxStackedBuffers=4096] Max number of stacked buffers under backpressure when sending
+ *                                             request body to the target server. If this number is reached,
+ *                                             the request is aborted.
+ */
 
 function selectConnectionIn(array){
 	return array[Math.floor(Math.random() * array.length)];
@@ -92,22 +103,42 @@ class Client{
 	 */
 	_maxStackedBuffers;
 
+	/**
+	 * @type {int} Max number of reconnection attempts for each Connection.
+	 * @private
+	 */
+	_reconnectionAttempts;
+
+	/**
+	 * @type {int} Delay in ms between each reconnection attempt for each Connection.
+	 * @private
+	 */
+	_reconnectionDelay;
+
+	/**
+	 * @type {number} Keep alive timeout in ms.
+	 * @private
+	 */
+	_keepAlive;
+
+	/**
+	 * @type {number} Keep alive initial delay in ms.
+	 * @private
+	 */
+	_keepAliveInitialDelay;
+
 	// endregion
 
 	/**
-	 * @param {Object} [options]
-	 * @param {boolean} [options.pipelining=true] Enable pipelining. False is not supported yet.
-	 * @param {number} [options.connectionTimeout=5000] Timeout in ms for a connection to be considered as dead.
-	 * @param {number} [options.maxConnectionsByHost=10] Max number of connections by host.
-	 * @param {number} [options.connectionWatcherInterval=1000] Interval in ms to check for dead connections.
-	 * @param {number} [options.maxPipelinedRequestsByConnection=100000] Max number of pipelined requests by connection.
-	 * @param {number} [options.maxStackedBuffers=4096] Max number of stacked buffers under backpressure when sending
-	 *                                                  request body to the target server. If this number is reached,
-	 *                                                  the request is aborted.
+	 * @param {UWSClientOpts} opts
 	 */
 	constructor(
 		{
 			pipelining = true,
+			reconnectionAttempts = 3,
+			reconnectionDelay = 1000,
+			keepAlive = 5000,
+			keepAliveInitialDelay = 1000,
 			connectionTimeout = 5000,
 			maxConnectionsByHost = 10,
 			connectionWatcherInterval = 1000,
@@ -115,12 +146,16 @@ class Client{
 			maxStackedBuffers = 4096
 		} = {}
 	){
+		this._keepAlive = keepAlive;
 		this._pipelining = pipelining;
 		this._connections = new Map();
 		this._pendingConnections = new Map();
+		this._reconnectionDelay = reconnectionDelay;
 		this._connectionTimeout = connectionTimeout;
 		this._maxStackedBuffers = maxStackedBuffers;
+		this._reconnectionAttempts = reconnectionAttempts;
 		this._maxConnectionsByHost = maxConnectionsByHost;
+		this._keepAliveInitialDelay = keepAliveInitialDelay;
 		this._connectionWatcherInterval = connectionWatcherInterval;
 		this._maxPipelinedRequestsByConnection = maxPipelinedRequestsByConnection;
 
@@ -140,12 +175,12 @@ class Client{
 	/**
 	 * Create a new connection. If the max number of connections by host is reached, it will select
 	 * a random connection to return.
-	 * @param {Request} request
+	 * @param {UWSConnectionOpts} opts
 	 * @return {Promise<Connection>}
 	 * @private
 	 */
-	_createConnection(request){
-		const key = `${request.host}:${request.port}`;
+	_createConnection(opts){
+		const key = `${opts.host}:${opts.port}`;
 
 		const nbConnections = this._connections.has(key) ? this._connections.get(key).length : 0;
 		const nbPendingConnections = this._pendingConnections.has(key) ? this._pendingConnections.get(key).length : 0;
@@ -193,7 +228,7 @@ class Client{
 			: new Sequential();
 
 		const connection = new Connection(
-			request,
+			opts,
 			responseParser,
 			new RequestSender(
 				sendingStrategy,
@@ -226,12 +261,12 @@ class Client{
 	 * Returns a connection for the given host and port. It creates new connection for each host/port
 	 * pair until the max number of connections is reached. Then it returns the first available connection
 	 * for subsequent requests.
-	 * @param {Request} request
+	 * @param {UWSConnectionOpts} opts
 	 * @return {Promise<Connection>}
 	 */
-	async _getConnection(request){
-		const host = request.host || 'localhost';
-		const port = request.port || 80;
+	async _getConnection(opts){
+		const host = opts.host || 'localhost';
+		const port = opts.port || 80;
 
 		const key = `${host}:${port}`;
 		const connections = this._connections.get(key) || /** @type {Connection} */[];
@@ -239,7 +274,7 @@ class Client{
 		// Overtime we create as many connections as allowed.
 		// pipelining is great but suffers from head-of-line blocking.
 		// We want to avoid it as much as possible, or at least to mitigate it.
-		let connection = await this._createConnection(request);
+		let connection = await this._createConnection(opts);
 		if(connection) return connection;
 
 		// We may have a most efficient options here, but this array should not be large
@@ -276,7 +311,18 @@ class Client{
 			throw new Error('Client is closed. Create a new one to make more requests.');
 		}
 
-		this._getConnection(request).then(connection => {
+		this._getConnection(
+			Object.assign(
+				{},
+				request,
+				{
+					keepAlive: this._keepAlive,
+					keepAliveInitialDelay: this._keepAliveInitialDelay,
+					maxReopenAttempts: this._reconnectionAttempts,
+					reopenDelay: this._reconnectionDelay
+				}
+			)
+		).then(connection => {
 			connection.send(request, callback);
 		}).catch(err => {
 			callback(err);

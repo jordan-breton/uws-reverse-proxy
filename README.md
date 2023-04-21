@@ -258,13 +258,15 @@ changing a line of code for most projects.
   - [x] Allow answering stream errors that are happening before the client response is written 
 		with proper HTTP formatted response instead of shutting down the connection like a savage.
   - [x] Allow for errors customization 
-- [ ] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
+- [x] When a content-length header is present in the response, using uWebSockets.js `tryEnd` instead 
 	  of `write`to avoid adding `Transfer-Encoding: chunked` to every request.
 - [ ] Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)
-- [ ] Testing a `node:http` client to [`undici`](https://github.com/nodejs/undici) client migration to see performances impact.
+- [x] Testing a `node:http` client to [`undici`](https://github.com/nodejs/undici) client migration to see performances impact.
+- [x] Custom HTTP client implementation to avoid using `node:http` client.
 - [ ] More flexibility in requests routing through proxy (add more control options, like a pre-handler to allow or not
   forwarding based on custom logic.)
 - [ ] Test uWebSockets.js version agnosticity for all uWebSockets.js versions.
   - [ ] Support backward compatibility
 - [ ] Automated tests included in CI/CD
+  - [x] HTTP/1.1 parser tests
 - [ ] Debugging mode with console logging

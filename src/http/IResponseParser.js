@@ -3,6 +3,8 @@
  */
 
 /**
+ * Parse an HTTP response.
+ *
  * @interface IResponseParser
  * @extends {EventEmitter}
  * @property {int} expectedBodySize

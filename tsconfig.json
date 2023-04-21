@@ -1,13 +1,14 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-	"allowJs": true,
+    "allowJs": true,
+    "skipLibCheck": true
   },
-	"typedocOptions": {
-		"out": "./docs",
-		"plugin": [
-			"typedoc-plugin-rename-defaults",
-			"typedoc-plugin-mermaid"
-		]
-	}
+    "typedocOptions": {
+        "out": "./docs",
+        "plugin": [
+            "typedoc-plugin-rename-defaults",
+            "typedoc-plugin-mermaid"
+        ]
+    }
 }

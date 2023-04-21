@@ -20,6 +20,7 @@
   "license": "LGPL-3.0-or-later",
   "private": false,
   "devDependencies": {
+    "@types/node": "^18.15.13",
     "mocha": "^10.2.0",
     "typedoc": "^0.23.28",
     "typedoc-plugin-mermaid": "^1.10.0",

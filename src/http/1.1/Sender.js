@@ -1,4 +1,8 @@
 /**
+ * @type {import('../IRequestSender').Request} Request
+ */
+
+/**
  * Send requests through a raw TCP socket.
  * @implements {IRequestSender}
  */

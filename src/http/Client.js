@@ -10,6 +10,11 @@ const RequestSender = require("./1.1/Sender");
 
 // region Private functions
 
+/**
+ * @type {import('../../IRequestSender').Request} Request
+ */
+
+
 function selectConnectionIn(array){
 	return array[Math.floor(Math.random() * array.length)];
 }

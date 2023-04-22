@@ -26,8 +26,8 @@ jobs:
         run: yarn install
 
       # Tests
-      #- name: Run tests
-      #  run: yarn test
+      - name: Run tests
+        run: yarn test
 
       # Configure Git
       - name: Git configuration

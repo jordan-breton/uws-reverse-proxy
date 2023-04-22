@@ -72,6 +72,7 @@ jobs:
         run: |
           git add "package.json"
           git add "CHANGELOG.md"
+          git add "docs/."
           git commit -m "chore: release ${{ env.NEW_VERSION }}"
           git tag ${{ env.NEW_VERSION }}
 

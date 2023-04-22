@@ -57,15 +57,15 @@ body.dark, :root[data-theme="dark"] {
 <a href="#uws-reverse-proxy" id="uws-reverse-proxy" style="color: inherit; text-decoration: none;">
   <h1>uws-reverse-proxy</h1>
 </a>
-<p>This project is an <strong>easy-to-use 0-dependency</strong>* reverse proxy based on <code>uWebSockets.js</code>. It enables use of <code>uWebSockets.js</code> and any <code>http</code>
-server (as <a href="https://www.npmjs.com/package/express">express</a>) on <strong>the same port</strong>.</p>
+<p>This project is an <strong>easy-to-use 0-dependency</strong>* reverse proxy based on <a href="https://github.com/uNetworking/uWebSockets.js/">uWebSockets.js</a>. It enables use of <code>uWebSockets.js</code> and any <code>http</code>
+server (as <a href="https://www.npmjs.com/package/express">express</a>, <a href="https://nestjs.com/">NestJS</a>, <a href="https://www.fastify.io/">Fastify</a>) on <strong>the same port</strong>.</p>
 <p>Tested with:</p>
 <ul>
 <li>uWebSockets.js v20.10.0</li>
 <li>NodeJS v18.0.0</li>
 </ul>
 <p>* <em>This package doesn&#39;t even depend on <code>uWebSockets.js</code> not to force any version usage, see in examples below.</em>
-   <em>That said, keep in mind that only the last version of uWebSockets.js has been tested.</em></p>
+<em>That said, keep in mind that only the last version of uWebSockets.js has been tested.</em></p>
 
 <a href="#how-does-it-work" id="how-does-it-work" style="color: inherit; text-decoration: none;">
   <h2>How does it work?</h2>
@@ -84,7 +84,7 @@ as some cloud platforms like Heroku, where you can&#39;t set up a proxy like <st
 and where you often have only one public port available.</p>
 <p>If you&#39;re not in a similar use case, just set up an <strong>Nginx</strong> or <strong>Apache</strong> proxy that will filter the requests to redirect them on
 the good <strong>private</strong> port, they will be more efficient and flexible.</p>
-<p>Conversely, if your server has to work in <strong>restricted server environment</strong> or if for whatever reason you want <code>uWebSockets.js</code> 
+<p>Conversely, if your server has to work in <strong>restricted server environment</strong> or if for whatever reason you want <code>uWebSockets.js</code>
 to handle all requests without standing behind a proxy, then this package is made for you :)</p>
 <p>In the case of <strong>express</strong> you <em>could</em> use a package like <a href="https://www.npmjs.com/package/http-proxy-middleware">http-proxy-middleware</a>
 to do the opposite (using <code>express</code> as a reverse proxy to forward requests to <code>uWebSockets.js</code>), but this doesn&#39;t seem to work at the time
@@ -158,7 +158,7 @@ sequenceDiagram
 <a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
   <h2>Usage</h2>
 </a>
-<p>This section describes some usage scenario. You can even see them in action in the 
+<p>This section describes some usage scenario. You can even see them in action in the
 <a href="https://github.com/jordan-breton/uws-reverse-proxy-examples">examples repository</a>.</p>
 <p>To see all available options, check the <a href="https://jordan-breton.github.io/uws-reverse-proxy/">code API documentation</a>.</p>
 
@@ -201,6 +201,157 @@ sequenceDiagram
 changing a line of code for most projects.</p>
 <p><strong>Keep in mind that it&#39;s... an HTTP reverse proxy. It can forward request to any HTTP server.</strong></p>
 
+<a href="#a-word-about-performances" id="a-word-about-performances" style="color: inherit; text-decoration: none;">
+  <h2>A word about performances</h2>
+</a>
+<p>Putting a proxy in front of your application always induces a performance penalty. This performance penalty heavily depends
+on the way you integrate the proxy to your application.</p>
+<p>Just keep in mind that contrary to using a proxy like Apache or Nginx, uws-reverse-proxy will only impact the HTTP part
+of your application. Since it is uWebSockets.js that handle all the trafic, your websockets are directly exposed to the Internet.</p>
+<p>This proxy is especially useful for websockets heavy applications in the uses cases you can find in the
+<a href="#why-for-what-use-cases">Why? For what use cases?</a> section.</p>
+
+<a href="#performance-penalty-in-function-of-the-integration-mode" id="performance-penalty-in-function-of-the-integration-mode" style="color: inherit; text-decoration: none;">
+  <h3>Performance penalty in function of the integration mode</h3>
+</a>
+<p>They are two main ways to integrate the proxy to your application:</p>
+<ul>
+<li><strong>Standalone mode</strong>: the most efficient. The proxy and your application are running in two different processes.</li>
+<li><strong>Integrated mode</strong>: the least efficient. The proxy and your application are running in the same process.</li>
+</ul>
+<p>While you can expect almost no performance penalty in standalone mode, in integrated mode, the performance penalty
+is about <strong>30% to 45%</strong>.</p>
+<p>In standalone mode, the performance penalty is comprised between <strong>3% to 10%</strong> as long as your HTTP server maximum capacity do not exceed this proxy maximum capacity.</p>
+<p>As a matter of fact, in my test environment, the proxy is able to handle up to <strong>45 000 req/s</strong> while an <strong>Express</strong> server is only
+able to handle <strong>9 500 req/s</strong>. So, in this case, the proxy is able to handle more requests than the Express server: you&#39;ll see almost
+no performance penalty.</p>
+<p>But if you test the proxy with an <strong>uWebSockets.js</strong> backend server (which is stupid, but it&#39;s to illustrate the point),
+while the proxy is able to handle up to <strong>45 000 req/s</strong>, the <strong>uWebSockets.js</strong> server is able to handle more or less 250 000 req/s.
+In this case, you end up with a <strong>500%</strong> performance penalty.</p>
+<p>I advise you to test the proxy to be sure that it fits your needs and that it&#39;s not a bottleneck in your specific case.</p>
+<p>That being said, you&#39;ll find below a table with the performance penalty I measured in my test environment for the different
+frameworks I tested. You&#39;ll see an <strong>average</strong> in both <strong>standalone</strong> and <strong>integrated</strong> mode as well as <strong>no proxy</strong> at all.</p>
+
+<a href="#performance-comparison" id="performance-comparison" style="color: inherit; text-decoration: none;">
+  <h3>Performance comparison</h3>
+</a>
+<p>Environment:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Specifications</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OS</td>
+<td>Ubuntu 22.04.2 LTS 64 bits</td>
+</tr>
+<tr>
+<td>Node</td>
+<td>v18.15.0</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>16 Gio</td>
+</tr>
+<tr>
+<td>Processor</td>
+<td>11th Gen Intel® Core™ i7-11800H @ 2.30GHz × 16</td>
+</tr>
+</tbody></table>
+<p>No DNS resolution, all servers will listen on the loopback address.</p>
+<p>All results are the average of 5 runs of 10 seconds each by using
+<a href="https://github.com/mcollina/autocannon">autocannon</a> with the following command:</p>
+<pre><code class="language-bash"><span class="hl-0">autocannon </span><span class="hl-1">localhost:</span><span class="hl-6">7777</span><br/><span class="hl-8"># Or, when testing without proxy</span><br/><span class="hl-0">autocannon </span><span class="hl-1">localhost:</span><span class="hl-6">35794</span>
+</code></pre>
+<p>Benchmarks are made with the <a href="https://github.com/jordan-breton/uws-reverse-proxy-examples">uws-reverse-proxy-examples repository</a></p>
+<ul>
+<li>In <strong>standalone mode</strong>, the proxy is started with <code>PORT=7777 yarn standalone:reverse-proxy</code>, then the target HTTP
+server is started with <code>yarn standalone:[framework]</code>.</li>
+<li>In <strong>integrated mode</strong>, we start the server with the command <code>PORT=7777 yarn [framework]</code>.</li>
+</ul>
+
+<a href="#results" id="results" style="color: inherit; text-decoration: none;">
+  <h4>Results</h4>
+</a>
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th align="right">No proxy</th>
+<th align="right">Standalone mode</th>
+<th align="right">Integrated mode</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>None (native http module)</td>
+<td align="right">18024 req/s</td>
+<td align="right">17000 req/s</td>
+<td align="right">9803 req/s</td>
+</tr>
+<tr>
+<td>Koa</td>
+<td align="right">13079 req/s</td>
+<td align="right">12400 req/s</td>
+<td align="right">8492 req/s</td>
+</tr>
+<tr>
+<td>Fastify</td>
+<td align="right">12372 req/s</td>
+<td align="right">11284 req/s</td>
+<td align="right">7817 req/s</td>
+</tr>
+<tr>
+<td>Nestjs</td>
+<td align="right">9786 req/s</td>
+<td align="right">8813 req/s</td>
+<td align="right">6153 req/s</td>
+</tr>
+<tr>
+<td>Express</td>
+<td align="right">9362 req/s</td>
+<td align="right">9102 req/s</td>
+<td align="right">6375 req/s</td>
+</tr>
+</tbody></table>
+<p>For readability, I&#39;ve rounded the results to the nearest integer. A better view of the performance penalty can be
+found in the table below based on the results above.</p>
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th align="right">Standalone mode</th>
+<th align="right">Integrated mode</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>None (native http module)</td>
+<td align="right">5.68%</td>
+<td align="right">45.61%</td>
+</tr>
+<tr>
+<td>Koa</td>
+<td align="right">5.20%</td>
+<td align="right">35.10%</td>
+</tr>
+<tr>
+<td>Fastify</td>
+<td align="right">8.80%</td>
+<td align="right">36.81%</td>
+</tr>
+<tr>
+<td>Nestjs</td>
+<td align="right">9.94%</td>
+<td align="right">37.12%</td>
+</tr>
+<tr>
+<td>Express</td>
+<td align="right">2.78%</td>
+<td align="right">31.91%</td>
+</tr>
+</tbody></table>
+
 <a href="#todo" id="todo" style="color: inherit; text-decoration: none;">
   <h2>TODO</h2>
 </a>
@@ -221,23 +372,28 @@ changing a line of code for most projects.</p>
 <li><input checked="" disabled="" type="checkbox"> A demo repository.</li>
 </ul>
 </li>
-<li><input checked="" disabled="" type="checkbox"> Publish on NPM </li>
+<li><input checked="" disabled="" type="checkbox"> Publish on NPM</li>
 <li><input checked="" disabled="" type="checkbox"> Better error management<ul>
-<li><input checked="" disabled="" type="checkbox"> Allow answering stream errors that are happening before the client response is written 
+<li><input checked="" disabled="" type="checkbox"> Allow answering stream errors that are happening before the client response is written
 with proper HTTP formatted response instead of shutting down the connection like a savage.</li>
 <li><input checked="" disabled="" type="checkbox"> Allow for errors customization</li>
 </ul>
 </li>
-<li><input disabled="" type="checkbox"> When a content-length header is present in the response, using uWebSockets.js <code>tryEnd</code> instead 
+<li><input checked="" disabled="" type="checkbox"> When a content-length header is present in the response, using uWebSockets.js <code>tryEnd</code> instead
 of <code>write</code>to avoid adding <code>Transfer-Encoding: chunked</code> to every request.</li>
 <li><input disabled="" type="checkbox"> Edge cases handling regarding proxying (HTTP 100 continue, headers cleanup)</li>
+<li><input checked="" disabled="" type="checkbox"> Testing a <code>node:http</code> client to <a href="https://github.com/nodejs/undici"><code>undici</code></a> client migration to see performances impact.</li>
+<li><input checked="" disabled="" type="checkbox"> Custom HTTP client implementation to avoid using <code>node:http</code> client.</li>
 <li><input disabled="" type="checkbox"> More flexibility in requests routing through proxy (add more control options, like a pre-handler to allow or not
 forwarding based on custom logic.)</li>
 <li><input disabled="" type="checkbox"> Test uWebSockets.js version agnosticity for all uWebSockets.js versions.<ul>
 <li><input disabled="" type="checkbox"> Support backward compatibility</li>
 </ul>
 </li>
-<li><input disabled="" type="checkbox"> Automated tests included in CI/CD</li>
+<li><input disabled="" type="checkbox"> Automated tests included in CI/CD<ul>
+<li><input checked="" disabled="" type="checkbox"> HTTP/1.1 parser tests</li>
+</ul>
+</li>
 <li><input disabled="" type="checkbox"> Debugging mode with console logging</li>
 </ul>
 </div></div>
@@ -266,6 +422,7 @@ forwarding based on custom logic.)</li>
 <ul>
 <li class="tsd-kind-class"><a href="classes/UWSProxy.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-class)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6" id="icon-128-path"></rect><path d="M11.898 16.1201C11.098 16.1201 10.466 15.8961 10.002 15.4481C9.53803 15.0001 9.30603 14.3841 9.30603 13.6001V9.64012C9.30603 8.85612 9.53803 8.24012 10.002 7.79212C10.466 7.34412 11.098 7.12012 11.898 7.12012C12.682 7.12012 13.306 7.34812 13.77 7.80412C14.234 8.25212 14.466 8.86412 14.466 9.64012H13.386C13.386 9.14412 13.254 8.76412 12.99 8.50012C12.734 8.22812 12.37 8.09212 11.898 8.09212C11.426 8.09212 11.054 8.22412 10.782 8.48812C10.518 8.75212 10.386 9.13212 10.386 9.62812V13.6001C10.386 14.0961 10.518 14.4801 10.782 14.7521C11.054 15.0161 11.426 15.1481 11.898 15.1481C12.37 15.1481 12.734 15.0161 12.99 14.7521C13.254 14.4801 13.386 14.0961 13.386 13.6001H14.466C14.466 14.3761 14.234 14.9921 13.77 15.4481C13.306 15.8961 12.682 16.1201 11.898 16.1201Z" fill="var(--color-text)" id="icon-128-text"></path></svg>UWSProxy</a></li>
 <li class="tsd-kind-interface tsd-is-external"><a href="interfaces/UWSAppOptions.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-interface)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6" id="icon-256-path"></rect><path d="M9.51 16V15.016H11.298V8.224H9.51V7.24H14.19V8.224H12.402V15.016H14.19V16H9.51Z" fill="var(--color-text)" id="icon-256-text"></path></svg>UWSApp<wbr/>Options</a></li>
+<li class="tsd-kind-interface"><a href="interfaces/UWSClientOpts.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-256-path"></use><use href="#icon-256-text"></use></svg>UWSClient<wbr/>Opts</a></li>
 <li class="tsd-kind-interface"><a href="interfaces/UWSDecodedRequest.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-256-path"></use><use href="#icon-256-text"></use></svg>UWSDecoded<wbr/>Request</a></li>
 <li class="tsd-kind-interface"><a href="interfaces/UWSProxyCallbacks.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-256-path"></use><use href="#icon-256-text"></use></svg>UWSProxy<wbr/>Callbacks</a></li>
 <li class="tsd-kind-interface"><a href="interfaces/UWSProxyErrorResponse.html" class="tsd-index-link"><svg class="tsd-kind-icon" width="24" height="24" viewBox="0 0 24 24"><use href="#icon-256-path"></use><use href="#icon-256-text"></use></svg>UWSProxy<wbr/>Error<wbr/>Response</a></li>

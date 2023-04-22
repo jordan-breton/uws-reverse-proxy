@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+
+## 3.2.0 - 2023-04-22
 ### Added
 - A more performant HTTP client supporting HTTP pipelining, Keep-Alive and connection pooling to replace `node:http` (see #2)
 - Error handling (you can handle errors and customize the error response) (see #2)
@@ -13,14 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Unit Tests for the HTTP Response parser
 
 ### Fixed
-
 - Huge performance issue (see #2) with a custom HTTP Client & HTTP Response parser
-    - There is still room for improvement, but it's now more than acceptable since the proxy handle 
+    - There is still room for improvement, but it's now more than acceptable since the proxy handle
       more connection than most NodeJS HTTP servers.
 
 ## 3.1.1 - 2023-03-23
 ### Changed
-
 - Changed code licensing from AGPL 3.0 and later to LGPL 3.0 or later. This change is retroactive.
 
 ## 3.1.0 - 2023-03-22

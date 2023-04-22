@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Added
-- Test files used to benchmark different scenarios (no automated tests here for now)
 - A more performant HTTP client supporting HTTP pipelining, Keep-Alive and connection pooling to replace `node:http` (see #2)
 - Error handling (you can handle errors and customize the error response) (see #2)
 - Started test coverage.
@@ -16,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - Huge performance issue (see #2) with a custom HTTP Client & HTTP Response parser
-    - There is still room for improvement, but it's now more than acceptable.
+    - There is still room for improvement, but it's now more than acceptable since the proxy handle 
+      more connection than most NodeJS frameworks.
 
 ## 3.1.1 - 2023-03-23
 ### Changed

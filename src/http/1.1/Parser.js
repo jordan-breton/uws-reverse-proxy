@@ -291,7 +291,6 @@ class Parser extends EventEmitter{
 							this._completed.chunk.header = true;
 
 							if(this._currentSymbol.length === 0){
-								console.log(this);
 								const error = new Error('FATAL HTTP response error: chunk size not specified.');
 								error.code = 'E_INVALID_CHUNK_SIZE';
 

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Started test coverage.
     - Unit Tests for the HTTP Response parser
 
-### Improved
+### Fixed
 
 - Huge performance issue (see #2) with a custom HTTP Client & HTTP Response parser
     - There is still room for improvement, but it's now more than acceptable since the proxy handle 

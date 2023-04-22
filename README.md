@@ -262,18 +262,18 @@ is about **30% to 45%**.
 
 In standalone mode, the performance penalty is comprised between **3% to 10%** as long as your HTTP server maximum capacity do not exceed this proxy maximum capacity.
 
-As a matter of fact, in my test environnement, the proxy is able to handle up to 45 000 req/s while an Express server is only
-able to handle 9 500 req/s. So, in this case, the proxy is able to handle more requests than the Express server: you'll see almost
+As a matter of fact, in my test environment, the proxy is able to handle up to **45 000 req/s** while an **Express** server is only
+able to handle **9 500 req/s**. So, in this case, the proxy is able to handle more requests than the Express server: you'll see almost
 no performance penalty.
 
-But if you test the proxy with a uWebSockets.js backend server (which is stupid, but it's to illustrate the point),
-while the proxy is able to handle up to 45 000 req/s, the uWebSockets.js server is able to handle more or less 250 000 req/s.
-In this case, you end up with a 500% performance penalty.
+But if you test the proxy with an **uWebSockets.js** backend server (which is stupid, but it's to illustrate the point),
+while the proxy is able to handle up to **45 000 req/s**, the **uWebSockets.js** server is able to handle more or less 250 000 req/s.
+In this case, you end up with a **500%** performance penalty.
 
 I advise you to test the proxy to be sure that it fits your needs and that it's not a bottleneck in your specific case.
 
-That being said, you'll find below a table with the performance penalty I measured in my test environnement for the different
-frameworks I tested. You'll see an average in both standalone and integrated mode vs no proxy at all.
+That being said, you'll find below a table with the performance penalty I measured in my test environment for the different
+frameworks I tested. You'll see an **average** in both **standalone** and **integrated** mode as well as **no proxy** at all.
 
 ### Performance comparison
 

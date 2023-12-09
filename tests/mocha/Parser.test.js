@@ -150,7 +150,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -205,7 +205,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -251,7 +251,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -298,7 +298,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -347,7 +347,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -397,7 +397,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -446,7 +446,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -507,7 +507,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -563,7 +563,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -619,7 +619,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -692,7 +692,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -757,7 +757,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -822,7 +822,7 @@ describe('HTTP responses parser', () => {
 
 			it('Must not report any error', () => {
 				return Promise.race([
-					new Promise((resolve, reject) => {
+					new Promise((_resolve, reject) => {
 						parser.on('error', err => {
 							reject(err);
 						});
@@ -868,7 +868,7 @@ describe('HTTP responses parser', () => {
 						done();
 					});
 
-					parser.on('error', err => {
+					parser.on('error', _err => {
 						// Ignore error (already tested)
 					});
 
@@ -897,7 +897,7 @@ describe('HTTP responses parser', () => {
 						done();
 					});
 
-					parser.on('error', err => {
+					parser.on('error', _err => {
 						// Ignore error (already tested)
 					});
 
@@ -926,7 +926,7 @@ describe('HTTP responses parser', () => {
 						done();
 					});
 
-					parser.on('error', err => {
+					parser.on('error', _err => {
 						// Ignore error (already tested)
 					});
 

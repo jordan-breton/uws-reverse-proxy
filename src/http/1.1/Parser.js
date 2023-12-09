@@ -201,7 +201,10 @@ class Parser extends EventEmitter{
 								// As per RFC 7230, section 3.3.2, we should close the connection if the content-length
 								// header is not a valid number
 								if(Number.isNaN(this._headers[HEADER_CONTENT_LENGTH])){
-									const error = new Error('FATAL HTTP response error: invalid content-length. The connection MUST be closed.');
+									const error = new Error(
+										'FATAL HTTP response error: invalid content-length.'
+										+ 'The connection MUST be closed.'
+									);
 									error.code = 'E_INVALID_CONTENT_LENGTH';
 
 									this.emit(EVT_ERROR, error);
@@ -216,8 +219,8 @@ class Parser extends EventEmitter{
 
 							// We notify listeners in which mode we will read the body
 							// it's important in pipelined connections, because if we're in UNTIL_CLOSE
-							// mode and are using pipelining, the pipeline will be broken.
-							// Therefor, it must be immediately closed.
+							// mode and are using pipelining, it's up to the listener to reset the parser
+							// when the connection is closed to terminate the request
 							if(!this._bodyChunked && this._bodyLength === undefined){
 								this.emit(EVT_BODY_READ_MODE, BODY_READ_MODE.UNTIL_CLOSE);
 							}else if(this._bodyChunked){
@@ -291,7 +294,9 @@ class Parser extends EventEmitter{
 							this._completed.chunk.header = true;
 
 							if(this._currentSymbol.length === 0){
-								const error = new Error('FATAL HTTP response error: chunk size not specified.');
+								const error = new Error(
+									'FATAL HTTP response error: chunk size not specified.'
+								);
 								error.code = 'E_INVALID_CHUNK_SIZE';
 
 								this.emit(EVT_ERROR, error);
@@ -303,7 +308,9 @@ class Parser extends EventEmitter{
 							this._bodyChunkSize = Number.parseInt(this._currentSymbol, 16);
 
 							if(Number.isNaN(this._bodyChunkSize)){
-								const error = new Error('FATAL HTTP response error: invalid chunk size.');
+								const error = new Error(
+									'FATAL HTTP response error: invalid chunk size.'
+								);
 								error.code = 'E_INVALID_CHUNK_SIZE';
 
 								this.emit(EVT_ERROR, error);
@@ -386,7 +393,8 @@ class Parser extends EventEmitter{
 				 * BODY_READ_MODE.UNTIL_CLOSE
 				 * --------------------------
 				 * In this mode, isLast will always be false, because we don't know when the body will end.
-				 * The listener must determine response end by listening to the connection close event.
+				 * The listener must determine response end by listening to the connection close event and manually
+				 * call the reset method.
 				 */
 				this.emit(EVT_BODY_CHUNK, data, false);
 			}

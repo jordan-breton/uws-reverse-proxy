@@ -73,7 +73,7 @@ class Sender {
 	 * @param {Request} request
 	 * @private
 	 */
-	_send(socket, request) {
+	_send(socket, request) {// GET /app HTTP/1.1
 		const rawHeaders = `${request.method.toUpperCase()} ${request.path} HTTP/1.1\r\n`
 			+ `host: ${request.host}:${request.port}\r\n`
 			+ `connection: keep-alive\r\n`

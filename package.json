@@ -16,7 +16,7 @@
     "type": "git",
     "url": "https://github.com/jordan-breton/uws-reverse-proxy"
   },
-  "author": "Jordan Breton <jordan.breton.dev@gmail.com>",
+  "author": "Jordan Breton <contact@jordan-breton.com>",
   "license": "LGPL-3.0-or-later",
   "private": false,
   "devDependencies": {

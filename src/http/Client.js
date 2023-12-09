@@ -258,7 +258,7 @@ class Client{
 	}
 
 	/**
-	 * Returns a connection for the given host and port. It creates new connection for each host/port
+	 * Returns a connection for the given host and port. It will create a new connection for each host/port
 	 * pair until the max number of connections is reached. Then it returns the first available connection
 	 * for subsequent requests.
 	 * @param {UWSConnectionOpts} opts
@@ -295,7 +295,6 @@ class Client{
 	}
 
 	// endregion
-	// region Public methods
 
 	/**
 	 * Makes an HTTP request and calls the callback when the response is received or
@@ -362,8 +361,6 @@ class Client{
 
 		clearInterval(this._connectionWatcherHandle);
 	}
-
-	// endregion
 }
 
 module.exports = Client;

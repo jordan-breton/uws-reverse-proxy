@@ -14,7 +14,7 @@ const { EventEmitter } = require('events');
  * @property {string} [servername] The servername used for SNI
  * @property {boolean} [isSecure] True if the connection should be secure
  * @property {boolean} [rejectUnauthorized] True if the connection should reject unauthorized certificates
- * @property {number} [highWaterMark=16*1024] The highWaterMark used for the socket
+ * @property {number} [highWaterMark=16384] The highWaterMark used for the socket
  * @property {string} [key] The key used for the TLS connection
  * @property {string} [cert] The certificate used for the TLS connection
  * @property {string} [ca] The certificate authority used for the TLS connection
@@ -63,7 +63,7 @@ class Connection extends EventEmitter{
 	_socket;
 
 	/**
-	 * @type {Object} The connection configuration passed to the constructor.
+	 * @type {import("net")} The connection configuration passed to the constructor.
 	 * @private
 	 */
 	_config;

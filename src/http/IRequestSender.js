@@ -41,7 +41,7 @@
 /**
  * @function
  * @name IRequestSender#send
- * @param {module:net.Socket} socket
+ * @param {import("net").Socket | import("tls").TLSSocket} socket
  * @param {Request} request
  * @param {sendCallback} callback
  */

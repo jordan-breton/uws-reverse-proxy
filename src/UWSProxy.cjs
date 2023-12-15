@@ -1,12 +1,12 @@
 // region Imports
 
-const HTTPClient = require('./http/Client');
+const HTTPClient = require('./http/Client.cjs');
 const { isPromise } = require('util').types;
 
 const {
 	decodeRequest,
 	writeHeaders
-} = require('./utils/uwsHelpers');
+} = require('./utils/uwsHelpers.cjs');
 
 // endregion
 

@@ -1,4 +1,4 @@
-const UWSProxy = require('./src/UWSProxy');
+const UWSProxy = require('./src/UWSProxy.cjs');
 
 module.exports = {
 	UWSProxy,

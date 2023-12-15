@@ -8,7 +8,7 @@
     "http",
     "websocket"
   ],
-  "main": "index.js",
+  "main": "index.cjs",
   "scripts": {
     "test": "nyc --reporter=text --reporter=html --report-dir=./.coverage mocha -n expose-gc './{,!(node_modules)/**}/*.test.js'"
   },

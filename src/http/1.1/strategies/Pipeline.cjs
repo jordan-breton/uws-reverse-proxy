@@ -1,6 +1,6 @@
 const {
 	writeHeaders
-} = require('../../../utils/uwsHelpers');
+} = require('../../../utils/uwsHelpers.cjs');
 
 const { Readable } = require('stream');
 

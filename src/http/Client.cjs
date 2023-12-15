@@ -1,10 +1,10 @@
 // region Imports
 
-const Parser = require("./1.1/Parser");
-const Pipeline = require("./1.1/strategies/Pipeline");
-const Sequential = require("./1.1/strategies/Sequential");
-const Connection = require('./Connection');
-const RequestSender = require("./1.1/Sender");
+const Parser = require("./1.1/Parser.cjs");
+const Pipeline = require("./1.1/strategies/Pipeline.cjs");
+const Sequential = require("./1.1/strategies/Sequential.cjs");
+const Connection = require('./Connection.cjs');
+const RequestSender = require("./1.1/Sender.cjs");
 
 // endregion
 
@@ -185,11 +185,15 @@ class Client{
 		const nbConnections = this._connections.has(key) ? this._connections.get(key).length : 0;
 		const nbPendingConnections = this._pendingConnections.has(key) ? this._pendingConnections.get(key).length : 0;
 
-		if(nbPendingConnections + nbConnections >= this._maxConnectionsByHost){
-			return selectConnectionIn([
-				...this._pendingConnections.get(key),
-				...this._connections.get(key)
-			]);
+		if (nbPendingConnections + nbConnections >= this._maxConnectionsByHost) {
+			if (nbPendingConnections > 0) {
+				return selectConnectionIn([
+					...this._pendingConnections.get(key),
+					...this._connections.get(key)
+				]);
+			} else {
+				return selectConnectionIn(this._connections.get(key));
+			}
 		}
 
 		if(!this._connections.has(key)){
@@ -269,7 +273,7 @@ class Client{
 		const port = opts.port || 80;
 
 		const key = `${host}:${port}`;
-		const connections = this._connections.get(key) || /** @type {Connection} */[];
+		const connections = this._connections.get(key) || /** @type {Connection[]} */[];
 
 		// Overtime we create as many connections as allowed.
 		// pipelining is great but suffers from head-of-line blocking.
@@ -286,7 +290,8 @@ class Client{
 			throw new Error(
 				`Max connections reached for host ${key}.`
 				+ ` It seems like every connection is busy. Please increase maxConnectionsByHost`
-				+ ` and/or maxRequestsByConnection.`);
+				+ ` and/or maxRequestsByConnection.`
+			);
 		}
 
 		// We select a random index between 0 and the array length to distribute the load

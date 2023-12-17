@@ -1,21 +1,27 @@
+/**
+ * @file Pipeline request sender strategy implementation.
+ */
+
+// region Imports...
+
 const {
-	writeHeaders
+	writeHeaders,
 } = require('../../../utils/uwsHelpers.cjs');
 
 const { Readable } = require('stream');
+
+// endregion
 
 /**
  * @typedef {import('stream').Readable} Readable
  */
 
-
 /**
  * Manage HTTP request pipeline. It eases the process of queueing requests to send responses back.
  *
- * @implements ISendingStrategy
+ * @implements {ISendingStrategy}
  */
 class Pipeline {
-
 	// region Private properties
 
 	/**
@@ -37,6 +43,7 @@ class Pipeline {
 	/**
 	 * Data stream fed by the parser, it allows us to manage backpressure and ease the pause/resume
 	 * process to be sure to send data in the right order.
+	 *
 	 * @type {Readable}
 	 * @private
 	 */
@@ -46,6 +53,7 @@ class Pipeline {
 	 * If true, the pipeline is locked and no request can be sent to the target server.
 	 * It indicates that the server responded with no content-length header nor transfer-encoding: chunked.
 	 * In that case, the spec indicates that the client should close the connection to end the response.
+	 *
 	 * @see https://greenbytes.de/tech/webdav/rfc7230.html#message.body.length point 7)
 	 * @type {boolean} _lock
 	 * @private
@@ -60,12 +68,13 @@ class Pipeline {
 	 * do not buffer the data for us.
 	 *
 	 * For transfer-encoding: chunked, uWebSockets.js will buffer the data for us, so we don't need
-	 * to manage backpressure this way, pausing/resuming the stream is enough
+	 * to manage backpressure this way, pausing/resuming the stream is enough.
 	 */
 
 	/**
 	 * A buffer containing data under backpressure. As long as it have not been sent, no more data
 	 * will be sent to the client.
+	 *
 	 * @type {Buffer} _pendingBuffer
 	 * @private
 	 */
@@ -73,6 +82,7 @@ class Pipeline {
 
 	/**
 	 * Offset of the pending buffer. This is used to know where to start reading data from the buffer.
+	 *
 	 * @type {number}
 	 * @private
 	 */
@@ -81,6 +91,7 @@ class Pipeline {
 	/**
 	 * Total size of the pending response. It is used to compute the buffer offset from which we need
 	 * to resume reading data.
+	 *
 	 * @type {number}
 	 * @private
 	 */
@@ -91,18 +102,18 @@ class Pipeline {
 	// endregion
 
 	/**
-	 * @param {IResponseParser} parser Parser used to parse the response from the target server.
-	 *                                 We will listen to its events to forward the data to the client.
-	 * @param {Object} [options]
-	 * @param {int} [options.maxRequests=1000] Default: `1000`. Maximum number of requests in the pipeline.
-	 *                                         If the queue is full, the next request will be rejected.
-	 *                                         Set to `0` to disable the limit.
+	 * @param {IResponseParser} parser - Parser used to parse the response from the target server.
+	 * We will listen to its events to forward the data to the client.
+	 * @param {Object} [options] - Construction options.
+	 * @param {int} [options.maxRequests=1000] - Default: `1000`. Maximum number of requests in the pipeline.
+	 * If the queue is full, the next request will be rejected.
+	 * Set to `0` to disable the limit.
 	 */
 	constructor(
 		parser,
 		{
-			maxRequests = 1000
-		} = {}
+			maxRequests = 1000,
+		} = {},
 	) {
 		this._parser = parser;
 		this._pendingRequests = [];
@@ -113,30 +124,34 @@ class Pipeline {
 			({
 				statusCode,
 				statusMessage,
-				headers
+				headers,
 			}) => {
 				this.setStatus(statusCode, statusMessage);
 				this.setHeaders(headers);
 
-				if ( parser.expectedBodySize === 0 ){
+				if (parser.expectedBodySize === 0) {
 					const pipelinedRequest = this.peek();
 
-					if ( !pipelinedRequest ) return;
+					if (!pipelinedRequest) {
+						return;
+					}
 
-					try{
+					try {
 						pipelinedRequest.request.response.end();
-					}catch (err){
-
+					} catch (err) {
+						// We can ignore this error, if we can't terminate it, it already has been.
 					}
 					this.terminateRequest();
 				}
-			}
+			},
 		);
 
 		parser.on('body_chunk', (chunk, isLast) => {
 
 			// Already ended the response in headers handler above.
-			if(parser.expectedBodySize === 0) return;
+			if (parser.expectedBodySize === 0) {
+				return;
+			}
 
 			this._dataStream.push([ chunk, isLast ]);
 		});
@@ -145,16 +160,17 @@ class Pipeline {
 
 			// with a parsing error, things gone very bad. We have no choice but to
 			// throw the whole pipeline away, otherwise all subsequent requests may be corrupted.
-
 			this.close(err);
-		})
+		});
 
 		parser.on('body_read_mode', mode => {
 
-			if(mode === 'UNTIL_CLOSE'){
+			if (mode === 'UNTIL_CLOSE') {
 				const pipelinedRequest = this.peek();
 
-				if(!pipelinedRequest) return;
+				if (!pipelinedRequest) {
+					return;
+				}
 
 				// The pipeline is locked, it won't accept more request until this one is terminated.
 				// Not that it will only be terminated when the client close the connection.
@@ -167,29 +183,31 @@ class Pipeline {
 
 	/**
 	 * Initialize a new dataStream that will receive data from the parser.
+	 *
 	 * @private
 	 */
-	_initDataStream(){
+	_initDataStream() {
 		this._dataStream = new Readable({
 			objectMode: true,
 			highWaterMark: 4096,
 
-			read() {}
+			read() {},
 		});
 
 		this._dataStream.on('data', ([ data, isLast ]) => {
 
 			const pipelinedRequest = this.peek();
 
-			if(!pipelinedRequest) return;
+			if (!pipelinedRequest) {
+				return;
+			}
 
-			if(pipelinedRequest.stale){
-
+			if (pipelinedRequest.stale) {
 				// we must ignore the data until the last chunk, then throw the request away
-				if(isLast){
+				if (isLast) {
 					this.terminateRequest();
 				}
-			}else{
+			} else {
 				this.addBody(data, isLast);
 			}
 		});
@@ -199,7 +217,6 @@ class Pipeline {
 			// It should never happen. This stream is safely managed by this class, and only receives
 			// data from the parser. If an error occurs, another part of the code is messing
 			// with this private state.
-
 			this.close(err);
 		});
 	}
@@ -225,12 +242,12 @@ class Pipeline {
 			statusMessage: undefined,
 			headers: {},
 			stale: false,
-			callback: responseCallback
+			callback: responseCallback,
 		};
 
 		const uwsResponse = request.response;
 
-		try{
+		try {
 			uwsResponse.onAborted(() => {
 
 				// Mark the request as stale so the data we continue to receive can be ignored
@@ -242,20 +259,19 @@ class Pipeline {
 			});
 
 			uwsResponse.onWritable((offset) => {
-				try{
+				try {
 					let [ ok ] = uwsResponse.tryEnd(
 						this._pendingBuffer.subarray(offset - this._pendingBufferOffset),
-						this._pendingRequestTotalSize
+						this._pendingRequestTotalSize,
 					);
 
-					if(ok){
+					if (ok) {
 						this._dataStream.resume();
 						this._pendingBuffer = undefined;
 						this._pendingBufferOffset = 0;
 						this._pendingRequestTotalSize = 0;
 					}
-				}catch(err){
-
+				} catch (err) {
 					// nothing to do here, the response have been aborted, and the abort handler
 					// takes care of the rest.
 				}
@@ -263,9 +279,9 @@ class Pipeline {
 				// We always have to return true/false in onWritable.
 				// If you did not send anything, return true for success.
 				return true;
-			})
-		}catch(err){
-			if(uwsResponse.aborted){
+			});
+		} catch (err) {
+			if (uwsResponse.aborted) {
 
 				// Mark the request as stale so the data we continue to receive can be ignored
 				// until receiving the last chunk, it allows us to not throw the entire pipeline for
@@ -282,8 +298,9 @@ class Pipeline {
 	}
 
 	/**
-	 * Returns the first-in request
-	 * @return {Response}
+	 * Returns the first-in request.
+	 *
+	 * @returns {Response|void} - The current request if any.
 	 */
 	peek() {
 		if (this._pendingRequests.length > 0) {
@@ -293,29 +310,32 @@ class Pipeline {
 
 	/**
 	 * Send a chunk of data to the client through the uwsResponse in case of unknown body size.
-	 * @param {Buffer} data    Chunk of data to send.
-	 * @param {boolean} isLast If true, terminate the first-in request.
+	 *
+	 * @param {Buffer} data - Chunk of data to send.
+	 * @param {boolean} isLast - If true, terminate the first-in request.
 	 * @private
 	 */
-	_sendStreamChunk(data, isLast = false){
+	_sendStreamChunk(data, isLast = false) {
 		const pipelinedRequest = this.peek();
 
-		if(!pipelinedRequest) return;
+		if (!pipelinedRequest) {
+			return;
+		}
 
 		const uwsResponse = pipelinedRequest.request.response;
 
 		// We're streaming
-		try{
+		try {
 			uwsResponse.cork(() => {
 				const ok = uwsResponse.write(data);
-				if(!ok){
+				if (!ok) {
 
 					// We have backpressure, we pause until uWebSockets.js tell us that the response
 					// is writable.
 					this._dataStream.pause();
 
 					uwsResponse.onWritable(() => {
-						if(isLast){
+						if (isLast) {
 							uwsResponse.end();
 							this.terminateRequest();
 						}
@@ -324,12 +344,12 @@ class Pipeline {
 						this._dataStream.resume();
 						return true;
 					});
-				}else if(isLast){
+				} else if (isLast) {
 					this.terminateRequest();
 					uwsResponse.end();
 				}
 			});
-		}catch(err){
+		} catch (err) {
 			// The response have been aborted
 		}
 	}
@@ -337,19 +357,21 @@ class Pipeline {
 	/**
 	 * Sends a chunk of data to the client through the uwsResponse in case of fixed length response
 	 * (with Content-Length header).
-	 * @param {Buffer} data      Chunk of data to send
-	 * @param {number} totalSize Content-Length header value
+	 *
+	 * @param {Buffer} data - Chunk of data to send.
+	 * @param {number} totalSize - Content-Length header value.
 	 * @private
 	 */
 	_sendChunk(data, totalSize) {
 		const pipelinedRequest = this.peek();
 
-		if(!pipelinedRequest) return;
+		if (!pipelinedRequest) {
+			return;
+		}
 
 		const uwsResponse = pipelinedRequest.request.response;
 
-		try{
-
+		try {
 			// Store where we are, globally, in our response
 			let lastOffset = uwsResponse.getWriteOffset();
 
@@ -370,29 +392,32 @@ class Pipeline {
 					this._pendingRequestTotalSize = totalSize;
 				}
 			});
-		}catch(err){
+		} catch (err) {
 			// Nothing more to do, the response have been aborted.
 		}
 	}
 
 	/**
-	 * Adds the given data to the first-in request body
-	 * @param {Buffer} data
-	 * @param {boolean} isLast If true, the request will be terminated
+	 * Adds the given data to the first-in request body.
+	 *
+	 * @param {Buffer} data - The data to add to the first-in request.
+	 * @param {boolean} isLast - If true, the request will be terminated.
 	 */
 	addBody(data, isLast = false) {
 		const pipelinedRequest = this.peek();
 
-		if(!pipelinedRequest) return
+		if (!pipelinedRequest) {
+			return;
+		}
 
-		if(pipelinedRequest.request.response.aborted){
+		if (pipelinedRequest.request.response.aborted) {
 			this.terminateRequest();
 			return;
 		}
 
 		const headers = pipelinedRequest.headers;
 
-		if(!('content-length' in headers)){
+		if (!('content-length' in headers)) {
 			this._sendStreamChunk(data, isLast);
 		} else {
 			this._sendChunk(data, headers['content-length']);
@@ -400,50 +425,57 @@ class Pipeline {
 	}
 
 	/**
-	 * Set the status code and message for the first-in request
-	 * @param {int|string} statusCode
-	 * @param {string} statusMessage
+	 * Set the status code and message for the first-in request.
+	 *
+	 * @param {int|string} statusCode - Standard HTTP status code.
+	 * @param {string} statusMessage - HTTP Status message.
 	 */
 	setStatus(statusCode, statusMessage) {
 		const pipelinedRequest = this.peek();
 
-		if(!pipelinedRequest) return;
+		if (!pipelinedRequest) {
+			return;
+		}
 
 		pipelinedRequest.status = statusCode;
 		pipelinedRequest.statusMessage = statusMessage;
 
 		const uwsResponse = pipelinedRequest.request.response;
 
-		try{
+		try {
 			uwsResponse.cork(() => {
 				uwsResponse.writeStatus(`${statusCode} ${statusMessage}`);
 			});
-		}catch(err){
+		} catch (err) {
 			// Nothing more to do, the response have been aborted.
 		}
 	}
 
 	/**
-	 * Set the headers for the first-in request
-	 * @param {Object<string,string>} headers
+	 * Set the headers for the first-in request.
+	 *
+	 * @param {Object<string,string>} headers - Headers to set on the first-in request.
 	 */
 	setHeaders(headers) {
 		const pipelinedRequest = this.peek();
 
-		if(!pipelinedRequest) return;
+		if (!pipelinedRequest) {
+			return;
+		}
 
 		pipelinedRequest.headers = headers;
 
-		try{
+		try {
 			writeHeaders(pipelinedRequest.request.response, headers);
-		}catch (err){
+		} catch (err) {
 			// Nothing more to do, the response have been aborted.
 		}
 	}
 
 	/**
-	 * Returns the number of pending requests
-	 * @return {number}
+	 * Returns the number of pending requests.
+	 *
+	 * @returns {number} - Number of pending requests in the current pipeline.
 	 */
 	size() {
 		return this._pendingRequests.length;
@@ -451,9 +483,10 @@ class Pipeline {
 
 	/**
 	 * Terminates the first-in request
-	 * Remove the request from the queue and return its data
-	 * @return {Response}
-	 **/
+	 * Remove the request from the queue and return its data.
+	 *
+	 * @returns {Response|void} - The terminated first-in request.
+	 */
 	terminateRequest() {
 		if (this._pendingRequests.length > 0) {
 			const pipelinedRequest = this._pendingRequests.shift();
@@ -466,35 +499,38 @@ class Pipeline {
 	}
 
 	/**
-	 * Terminates all pending requests
-	 * @param {Error|null} [err=null] The error that caused a forced pipeline close.
+	 * Terminates all pending requests.
+	 *
+	 * @param {Error|null} [err=null] - The error that caused a forced pipeline close.
 	 */
 	close(err = null) {
 		let pipelinedRequest;
 
-		if(!err){
+		if (!err) {
 			err = new Error('Request aborted');
 			err.code = 'E_PIPELINE_ABORTED';
 		}
 
-		while(pipelinedRequest = this.terminateRequest()){
-			if(pipelinedRequest.stale) continue;
+		while (pipelinedRequest = this.terminateRequest()) {
+			if (pipelinedRequest.stale) {
+				continue;
+			}
 
 			pipelinedRequest.callback(err, pipelinedRequest);
 
 			const { body, response } = pipelinedRequest.request;
 
 			if (response) {
-				try{
+				try {
 					response.end();
-				}catch(err){
+				} catch (err) {
 					// Nothing more to do, the response have been aborted.
 				}
 			}
 
 			// If any, We destroy the request body stream to ensure it is closed.
 			// We don't need it anymore.
-			if(body){
+			if (body) {
 				body.destroy(err);
 			}
 		}

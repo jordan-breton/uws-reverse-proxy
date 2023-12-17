@@ -1,13 +1,13 @@
 /**
- * @type {import('events').EventEmitter}
+ * @file ResponseParser interface.
  */
 
 /**
  * Parse an HTTP response.
  *
  * @interface IResponseParser
- * @extends {EventEmitter}
- * @property {int} expectedBodySize
+ * @extends {NodeJS.EventEmitter}
+ * @property {int} expectedBodySize - The expected body size of the response.
  */
 
 /**

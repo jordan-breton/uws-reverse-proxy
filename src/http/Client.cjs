@@ -1,10 +1,14 @@
+/**
+ * @file HTTP Client implementation used to reach backend servers.
+ */
+
 // region Imports
 
-const Parser = require("./1.1/Parser.cjs");
-const Pipeline = require("./1.1/strategies/Pipeline.cjs");
-const Sequential = require("./1.1/strategies/Sequential.cjs");
+const Parser = require('./1.1/Parser.cjs');
+const Pipeline = require('./1.1/strategies/Pipeline.cjs');
+const Sequential = require('./1.1/strategies/Sequential.cjs');
 const Connection = require('./Connection.cjs');
-const RequestSender = require("./1.1/Sender.cjs");
+const RequestSender = require('./1.1/Sender.cjs');
 
 // endregion
 
@@ -22,11 +26,11 @@ const RequestSender = require("./1.1/Sender.cjs");
  * @property {number} [connectionWatcherInterval=1000] Interval in ms to check for dead connections.
  * @property {number} [maxPipelinedRequestsByConnection=100000] Max number of pipelined requests by connection.
  * @property {number} [maxStackedBuffers=4096] Max number of stacked buffers under backpressure when sending
- *                                             request body to the target server. If this number is reached,
- *                                             the request is aborted.
+ * request body to the target server. If this number is reached,
+ * the request is aborted.
  */
 
-function selectConnectionIn(array){
+function selectConnectionIn(array) {
 	return array[Math.floor(Math.random() * array.length)];
 }
 
@@ -39,7 +43,7 @@ function selectConnectionIn(array){
  *
  * Sequential mode is not supported yet.
  */
-class Client{
+class Client {
 
 	// region Private properties
 
@@ -47,9 +51,11 @@ class Client{
 	 * @type {Map<string, Connection[]>}
 	 */
 	_connections;
+
 	/**
 	 * When creating a new connection, it is added to this map.
 	 * Once the connection is ready, it is moved to the _connections map.
+	 *
 	 * @type {Map<string, Promise<Connection>[]>}
 	 */
 	_pendingConnections = new Map();
@@ -130,7 +136,7 @@ class Client{
 	// endregion
 
 	/**
-	 * @param {UWSClientOpts} opts
+	 * @param {UWSClientOpts} opts - Client connection options.
 	 */
 	constructor(
 		{
@@ -143,9 +149,9 @@ class Client{
 			maxConnectionsByHost = 10,
 			connectionWatcherInterval = 1000,
 			maxPipelinedRequestsByConnection = 100000,
-			maxStackedBuffers = 4096
-		} = {}
-	){
+			maxStackedBuffers = 4096,
+		} = {},
+	) {
 		this._keepAlive = keepAlive;
 		this._pipelining = pipelining;
 		this._connections = new Map();
@@ -162,7 +168,7 @@ class Client{
 		this._connectionWatcherHandle = setInterval(() => {
 			this._connections.forEach(connections => {
 				connections.forEach(connection => {
-					if(connection.isAvailable() && Date.now() - connection.lastActivity > this._connectionTimeout){
+					if (connection.isAvailable() && Date.now() - connection.lastActivity > this._connectionTimeout) {
 						connection.close();
 					}
 				});
@@ -175,11 +181,12 @@ class Client{
 	/**
 	 * Create a new connection. If the max number of connections by host is reached, it will select
 	 * a random connection to return.
-	 * @param {UWSConnectionOpts} opts
-	 * @return {Promise<Connection>}
+	 *
+	 * @param {UWSConnectionOpts} opts - Connection options used to create a new connection to the backend-server.
+	 * @returns {Promise<Connection>} A promise wrapping the created connection.
 	 * @private
 	 */
-	_createConnection(opts){
+	_createConnection(opts) {
 		const key = `${opts.host}:${opts.port}`;
 
 		const nbConnections = this._connections.has(key) ? this._connections.get(key).length : 0;
@@ -189,18 +196,18 @@ class Client{
 			if (nbPendingConnections > 0) {
 				return selectConnectionIn([
 					...this._pendingConnections.get(key),
-					...this._connections.get(key)
+					...this._connections.get(key),
 				]);
 			} else {
 				return selectConnectionIn(this._connections.get(key));
 			}
 		}
 
-		if(!this._connections.has(key)){
+		if (!this._connections.has(key)) {
 			this._connections.set(key, []);
 		}
 
-		if(!this._pendingConnections.has(key)){
+		if (!this._pendingConnections.has(key)) {
 			this._pendingConnections.set(key, []);
 		}
 
@@ -216,7 +223,7 @@ class Client{
 		const responseParser = new Parser();
 
 		responseParser.on('error', error => {
-			if([ 'E_INVALID_CONTENT_LENGTH', 'E_INVALID_CHUNK_SIZE' ].includes(error.code)){
+			if ([ 'E_INVALID_CONTENT_LENGTH', 'E_INVALID_CHUNK_SIZE' ].includes(error.code)) {
 				connection.emit('error', error);
 				connection.close();
 			}
@@ -226,8 +233,8 @@ class Client{
 			? new Pipeline(
 				responseParser,
 				{
-					maxRequests: this._maxPipelinedRequestsByConnection
-				}
+					maxRequests: this._maxPipelinedRequestsByConnection,
+				},
 			)
 			: new Sequential();
 
@@ -237,9 +244,9 @@ class Client{
 			new RequestSender(
 				sendingStrategy,
 				{
-					maxStackedBuffers: this._maxStackedBuffers
-				}
-			)
+					maxStackedBuffers: this._maxStackedBuffers,
+				},
+			),
 		);
 
 		const connections = this._connections.get(key);
@@ -265,10 +272,11 @@ class Client{
 	 * Returns a connection for the given host and port. It will create a new connection for each host/port
 	 * pair until the max number of connections is reached. Then it returns the first available connection
 	 * for subsequent requests.
-	 * @param {UWSConnectionOpts} opts
-	 * @return {Promise<Connection>}
+	 *
+	 * @param {UWSConnectionOpts} opts - List of options used to connect to a backend-server.
+	 * @returns {Promise<Connection>} A promise wrapping the current connection.
 	 */
-	async _getConnection(opts){
+	async _getConnection(opts) {
 		const host = opts.host || 'localhost';
 		const port = opts.port || 80;
 
@@ -279,18 +287,20 @@ class Client{
 		// pipelining is great but suffers from head-of-line blocking.
 		// We want to avoid it as much as possible, or at least to mitigate it.
 		let connection = await this._createConnection(opts);
-		if(connection) return connection;
+		if (connection) {
+			return connection;
+		}
 
 		// We may have a most efficient options here, but this array should not be large
 		// enough to be a bottleneck.
 		/** @type {Connection[]} */
 		const availableConnections = connections.filter(c => c.isAvailable());
 
-		if(availableConnections.length === 0 && connections.length >= this._maxConnectionsByHost){
+		if (availableConnections.length === 0 && connections.length >= this._maxConnectionsByHost) {
 			throw new Error(
 				`Max connections reached for host ${key}.`
-				+ ` It seems like every connection is busy. Please increase maxConnectionsByHost`
-				+ ` and/or maxRequestsByConnection.`
+				+ ' It seems like every connection is busy. Please increase maxConnectionsByHost'
+				+ ' and/or maxRequestsByConnection.',
 			);
 		}
 
@@ -307,11 +317,15 @@ class Client{
 	 *
 	 * Note: you can't get the response body. You'll only get the request, the response headers, status and status text
 	 * and/or the error if any. The response is streamed directly to the Request.response object for performance reasons.
-	 * @param {Request} request
-	 * @param {sendCallback} callback
+	 *
+	 * @param {Request} request - The request to handle.
+	 * @param {sendCallback} callback - The callback to execute one the request's response has been received or an error
+	 * occurred.
+	 *
+	 * @throws {Error} If the current client is closed.
 	 */
-	request(request, callback){
-		if(this._closed){
+	request(request, callback) {
+		if (this._closed) {
 			throw new Error('Client is closed. Create a new one to make more requests.');
 		}
 
@@ -323,9 +337,9 @@ class Client{
 					keepAlive: this._keepAlive,
 					keepAliveInitialDelay: this._keepAliveInitialDelay,
 					maxReopenAttempts: this._reconnectionAttempts,
-					reopenDelay: this._reconnectionDelay
-				}
-			)
+					reopenDelay: this._reconnectionDelay,
+				},
+			),
 		).then(connection => {
 			connection.send(request, callback);
 		}).catch(err => {
@@ -337,19 +351,20 @@ class Client{
 	 * Close the client and all its pending connections. Force all pending requests to abort.
 	 *
 	 * If host and port are provided, only the connections to the given host and port will be closed.
-	 * @param {string|null} [host]
-	 * @param {number|string|null} port
+	 *
+	 * @param {string|null} [host] - The host to close connections of.
+	 * @param {number|string|null} port - The port to close connections of (only used if host is provided too).
 	 */
-	close(host = null, port = null){
+	close(host = null, port = null) {
 		this._closed = true;
 
-		if(host && port){
+		if (host && port) {
 			const key = `${host}:${port}`;
 			const connections = this._connections.get(key);
-			if(!connections){
+			if (!connections) {
 				return;
 			}
-			for(const connection of connections){
+			for (const connection of connections) {
 				connection.close();
 			}
 			this._connections.delete(key);
@@ -357,7 +372,7 @@ class Client{
 		}
 
 		this._connections.forEach((connections, key) => {
-			for(const connection of connections){
+			for (const connection of connections) {
 				connection.close();
 
 				this._connections.delete(key);

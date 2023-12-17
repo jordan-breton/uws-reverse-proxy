@@ -1,3 +1,7 @@
+/**
+ * @file Raw TCP connection handler.
+ */
+
 // region Imports
 
 const net = require('net');
@@ -22,7 +26,6 @@ const { EventEmitter } = require('events');
  * @property {number} [keepAliveInitialDelay=1000] The keep-alive initial delay in ms
  * @property {number} [maxReopenAttempts=3] Max number of attempts to reopen a connection
  * @property {number} [reopenDelay=1000] Delay in ms between each attempt to reopen a connection
- *
  */
 
 /**
@@ -32,10 +35,11 @@ const { EventEmitter } = require('events');
  * Supports keep-alive and reconnection. If the connection can't be established, it will try to
  * reconnect maxReopenAttempts times with a delay of reopenDelay ms between each attempt.
  */
-class Connection extends EventEmitter{
+class Connection extends EventEmitter {
 
 	/**
-	 * The connection states
+	 * The possible connection states.
+	 *
 	 * @type {{
 	 *      CLOSED: string,
 	 *      CONNECTING: string,
@@ -45,8 +49,8 @@ class Connection extends EventEmitter{
 	static STATES = {
 		CONNECTING: 'connecting',
 		CONNECTED: 'connected',
-		CLOSED: 'closed'
-	}
+		CLOSED: 'closed',
+	};
 
 	// region Private properties
 
@@ -63,7 +67,7 @@ class Connection extends EventEmitter{
 	_socket;
 
 	/**
-	 * @type {import("net")} The connection configuration passed to the constructor.
+	 * @type {import('net').SocketConnectOpts} The connection configuration passed to the constructor.
 	 * @private
 	 */
 	_config;
@@ -126,15 +130,15 @@ class Connection extends EventEmitter{
 	// endregion
 
 	/**
-	 * @param {UWSConnectionOpts} opts
-	 * @param {IResponseParser} responseParser The parser used to decode the target server responses
-	 * @param {IRequestSender} requestSender The sender used to send requests to the target server
+	 * @param {UWSConnectionOpts} opts - Connection options.
+	 * @param {IResponseParser} responseParser - The parser used to decode the target server responses.
+	 * @param {IRequestSender} requestSender - The sender used to send requests to the target server.
 	 */
 	constructor(
 		opts,
 		responseParser,
-		requestSender
-	){
+		requestSender,
+	) {
 		super();
 
 		const {
@@ -150,7 +154,7 @@ class Connection extends EventEmitter{
 			keepAliveInitialDelay = 1000,
 			key,
 			cert,
-			ca
+			ca,
 		} = opts;
 
 		this._config = {
@@ -162,7 +166,7 @@ class Connection extends EventEmitter{
 			key,
 			cert,
 			ca,
-			keepAliveInitialDelay
+			keepAliveInitialDelay,
 		};
 
 		this._isSecure = isSecure;
@@ -180,17 +184,19 @@ class Connection extends EventEmitter{
 
 	/**
 	 * Return the last activity timestamp.
-	 * @return {Number}
+	 *
+	 * @returns {Number} - Timestamp of the last activity on the current connection.
 	 */
-	get lastActivity(){
+	get lastActivity() {
 		return this._lastActivity;
 	}
 
 	/**
 	 * Return the current connection state.
-	 * @return {string}
+	 *
+	 * @returns {string} - The current connection state.
 	 */
-	get state(){
+	get state() {
 		return this._state;
 	}
 
@@ -200,28 +206,31 @@ class Connection extends EventEmitter{
 
 	/**
 	 * Should be called when the connection sends or receives data.
+	 *
 	 * @private
 	 */
-	_activity(){
+	_activity() {
 		this._lastActivity = Date.now();
 	}
 
 	/**
 	 * Change the connection state and emit an event.
-	 * @param {'closed'|'connected'|'connecting'} state
+	 *
+	 * @param {'closed'|'connected'|'connecting'} state - The new state to apply to the current connection.
 	 * @private
 	 */
-	_changeState(state){
+	_changeState(state) {
 		this._state = state;
 		this.emit(state);
 	}
 
 	/**
 	 * Open the connection. If the connection is already open, it will be closed first.
+	 *
 	 * @private
 	 */
-	_openConnection(){
-		if(this._socket){
+	_openConnection() {
+		if (this._socket) {
 			this._socket.end();
 		}
 
@@ -237,8 +246,8 @@ class Connection extends EventEmitter{
 
 		this._socket.on('error', (err) => {
 			// If the connection is refused, we try to reopen it a few times before abandoning
-			if(err.code === 'ECONNREFUSED'){
-				if(this._reopenAttempts >= this._maxReopenAttempts){
+			if (err.code === 'ECONNREFUSED') {
+				if (this._reopenAttempts >= this._maxReopenAttempts) {
 					this.emit('error', err);
 					return;
 				}
@@ -250,12 +259,12 @@ class Connection extends EventEmitter{
 					this._openConnection();
 				}, this._reopenDelay);
 				return;
-			}else if(err.code === 'ECONNABORTED'){
+			} else if (err.code === 'ECONNABORTED') {
 				const newErr = new Error(
 					'Connection aborted by the target server',
 					{
-						cause: err
-					}
+						cause: err,
+					},
 				);
 				newErr.code = 'E_RECIPIENT_ABORTED';
 				newErr.originalError = err;
@@ -289,40 +298,42 @@ class Connection extends EventEmitter{
 	/**
 	 * Return true if the connection is available to send requests (i.e. it is connected and the
 	 * request sender can still accept more requests).
-	 * @return {boolean}
+	 *
+	 * @returns {boolean} - Either the current connection is available or not.
 	 */
-	isAvailable(){
+	isAvailable() {
 		return this._state === Connection.STATES.CONNECTED
 			&& this._requestSender.acceptsMoreRequests();
 	}
 
 	/**
-	 * Send a request to the server
-	 * @param {Request} request
-	 * @param {sendCallback} callback
+	 * Send a request to the server.
+	 *
+	 * @param {Request} request - The request to send.
+	 * @param {sendCallback} callback - The callback to call once the response has been received.
 	 */
-	send(request, callback){
-		if(this._state !== Connection.STATES.CONNECTED){
+	send(request, callback) {
+		if (this._state !== Connection.STATES.CONNECTED) {
 			callback(new Error(`Can't send any request: connection is in ${this._state} state.`));
 			return;
 		}
 
-		if(!('headers' in request)){
+		if (!('headers' in request)) {
 			request.headers = {};
 		}
 
-		if(!('host' in request.headers)){
+		if (!('host' in request.headers)) {
 			request.headers.host = this._config.host;
 		}
 
-		if(!('port' in request.headers)){
+		if (!('port' in request.headers)) {
 			request.headers.port = this._config.port;
 		}
 
 		this._requestSender.send(
 			this._socket,
 			request,
-			callback
+			callback,
 		);
 	}
 
@@ -330,9 +341,13 @@ class Connection extends EventEmitter{
 	 * Close the connection by ending the socket.
 	 * Fails silently if the connection is already closed.
 	 */
-	close(){
-		if(!this._socket) return;
-		if(this._state !== Connection.STATES.CONNECTED) return;
+	close() {
+		if (!this._socket) {
+			return;
+		}
+		if (this._state !== Connection.STATES.CONNECTED) {
+			return;
+		}
 
 		this._properlyClosed = true;
 		this._socket.end();

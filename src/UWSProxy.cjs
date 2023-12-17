@@ -1,3 +1,7 @@
+/**
+ * @file Proxy class file, used to represent the reverse-proxy main features/state.
+ */
+
 // region Imports
 
 const HTTPClient = require('./http/Client.cjs');
@@ -5,7 +9,7 @@ const { isPromise } = require('util').types;
 
 const {
 	decodeRequest,
-	writeHeaders
+	writeHeaders,
 } = require('./utils/uwsHelpers.cjs');
 
 // endregion
@@ -14,132 +18,152 @@ const {
 
 /**
  * List of keys in uWebSocket config object that indicates that our server is using SSL encryption.
+ *
  * @type {string[]}
  * @private
  */
 const UWS_SSL_KEYS = [
 	'key_file_name',
-	'cert_file_name'
+	'cert_file_name',
 ];
 
 // endregion
 // region JSDOC typedefs
 
 /**
+ * HTTP client.
  *
+ * @typedef {import('./http/Client')} Client
+ */
+
+/**
  * HTTP configuration options for UWSProxy's constructor.
+ *
  * @see {UWSProxy.createHTTPConfig}
  * @typedef UWSProxyHTTPConfigOpts
  * @property {'http'|'https'} [protocol="http"] Default: `'http'` - Server protocol
- * @property {int}            [port=35974] Default: `35974` - Private port the HTTP server must listen to
- * @property {string}         [host="127.0.0.1"] Default: `'127.0.0.1'` - HTTP host. Default is the loop-back address.
- * @property {boolean}        [quiet=false] Default: `false` - Disable configuration warning printing
- * @property {UWSClientOpts}  [client] Default: `undefined` - HTTP client configuration
+ * @property {int} [port=35974] Default: `35974` - Private port the HTTP server must listen to
+ * @property {string} [host="127.0.0.1"] Default: `'127.0.0.1'` - HTTP host. Default is the loop-back address.
+ * @property {boolean} [quiet=false] Default: `false` - Disable configuration warning printing
+ * @property {UWSClientOpts} [client] Default: `undefined` - HTTP client configuration
  */
 
 /**
  * UWSProxy actual configuration for uWebSockets.js
+ *
  * @typedef UWSProxyHTTPConfig
  * @property {UWSProxyHTTPConfigOpts} config Raw configuration passed to UWSProxy.createHTTPConfig
  * @property {'http'|'https'} protocol HTTP protocol
- * @property {int}            port     Listening port
- * @property {string}         host     HTTP host
- * @property {UWSClientOpts}  client
+ * @property {int} port Listening port
+ * @property {string} host HTTP host
+ * @property {UWSClientOpts} client Options passed down to the http client.
  */
 
 /**
  * uWebSockets.js
+ *
  * @see [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js/)
  * @typedef {import("uWebSockets.js")} UWS
  */
 
 /**
  * uWebSockets.js TemplatedApp
- * @øee [TemplatedApp Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html)
+ *
+ * @see [TemplatedApp Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/TemplatedApp.html)
  * @typedef {import("uWebSockets.js").TemplatedApp} UWSTemplatedApp
  */
 
 /**
  * uWebSockets.js AppOptions
+ *
  * @see [AppOptions Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/AppOptions.html)
  * @typedef {import("uWebSockets.js").AppOptions} UWSAppOptions
  */
 
 /**
  * uWebSockets.js HTTPRequest
+ *
  * @see [HttpRequest Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/HttpRequest.html)
  * @typedef {import("uWebSockets.js").HttpRequest} UWSRequest
  */
 
 /**
  * uWebSockets.js Recognized string
+ *
  * @see [RecognizedString Documentation](https://unetworking.github.io/uWebSockets.js/generated/types/RecognizedString.html)
  * @typedef {import("uWebSockets.js").RecognizedString} UWSRecognizedString
  */
 
 /**
  * uWebSockets.js HttpResponse
+ *
  * @see [HttpResponse Documentation](https://unetworking.github.io/uWebSockets.js/generated/interfaces/HttpResponse.html)
  * @typedef {import("uWebSockets.js").HttpResponse} UWSResponse
  */
 
 /**
  * HTTPClient configuration options.
+ *
  * @typedef {import("./http/Client.js").UWSClientOpts} UWSClientOpts
  */
 
 /**
  * uWebSockets.js configuration options for UWSProxy's constructor.
+ *
  * @see {UWSProxy.createUWSConfig}
  * @typedef UWSProxyUWSConfigOpts
- * @property {boolean|null} [ssl=null]     Default: `null` - If true, inform the Proxy that trafic is encrypted (it
- *                                         matters to set proxy Headers and create (if not provided)
- *                                         an SSLApp instead of an App)
- * @property {int}           [port=443]    Default: `443` - Public port uWebSocket server is listening to
- * @property {boolean}       [quiet=false] Default: `false` - Disable configuration warning printing
+ * @property {boolean|null} [ssl=null] Default: `null` - If true, inform the Proxy that trafic is encrypted (it
+ * matters to set proxy Headers and create (if not provided)
+ * an SSLApp instead of an App)
+ * @property {int} [port=443] Default: `443` - Public port uWebSocket server is listening to
+ * @property {boolean} [quiet=false] Default: `false` - Disable configuration warning printing
  * @property {UWSAppOptions} [config=Object] Default: `{}` - See uWebSockets.js AppOptions
  */
 
 /**
  * UWSProxy actual configuration for uWebSockets.js
+ *
  * @typedef UWSProxyUWSConfig
- * @property {boolean}               ssl
- * @property {int}                   port
- * @property {UWSProxyUWSConfigOpts} config
- * @property {UWSTemplatedApp}       server
+ * @property {boolean} ssl - Either the current uWebSocket.js server is a SSLApp or not.
+ * @property {int} port - The port to open.
+ * @property {UWSProxyUWSConfigOpts} config - uWebsocket.js configuration.
+ * @property {UWSTemplatedApp} server - A templated app.
  */
 
 /**
  * Callbacks dictionary used by UWSProxy for you to hook / change the proxy behavior in some
  * circumstances.
+ *
  * @typedef UWSProxyCallbacks
  * @property {UWSProxyErrorHandler|null} [error=null] Default: `null` - Called when a proxy request fails for whatever reason.
  */
 
 /**
  * UWSProxy configuration options.
+ *
  * @typedef UWSProxyOpts
- * @property {Object} [backpressure=Object]
- * @property {int}    [backpressure.maxStackedBuffers=4096] Default: `4096` - Once the buffer is filled, the connection
- *                                                          will be aborted
+ * @property {Object} [backpressure=Object] Backpressure management related options.
+ * @property {int} [backpressure.maxStackedBuffers=4096] Default: `4096` - Once the buffer is filled, the connection
+ * will be aborted
  * @property {Object<string, string|string[]>} [headers=Object] Additional headers always appended to
- *                                                          the proxy request (not on the client's
- *                                                          response)
+ * the proxy request (not on the client's
+ * response)
  * @property {Object<string, string>} [routes] Routes we want the proxy request handlers to listen
- *                                             to
- * @property {int}    [timeout=300000] Default: `300000` - Timeout in MS before an attempt to reach the proxied server
- *                                        will abort.
+ * to
+ * @property {int} [timeout=300000] Default: `300000` - Timeout in MS before an attempt to reach the proxied server
+ * will abort.
  * @property {UWSProxyCallbacks} [on=Object] Collection of optional callbacks
  */
 
 /**
  * Used by UWSProxy to send a proper Error response to the client if possible. This object can
  * be returned by a UWSProxyCallbacks.error callback to change the UWSProxy default error response.
+ *
  * @see {UWSProxyCallbacks.error}
  * @typedef UWSProxyErrorResponse
- * @property {string} status
- * @property {Object<string,string|string[]>} headers
- * @property {UWSRecognizedString} body
+ * @property {string} status - The HTTP status to return to the client. ex: '500 Internal Server Error'.
+ * @property {Object<string,string|string[]>} headers - The headers to return to the client.
+ * @property {UWSRecognizedString} body - Data to return in the response body.
  */
 
 /**
@@ -177,7 +201,7 @@ const UWS_SSL_KEYS = [
  * - **E_INVALID_CHUNK_LENGTH**: The response parser received a chunk length with an invalid value.
  * @param {Error} error
  * @param {UWSDecodedRequest} decodedRequest
- * @return {UWSProxyErrorResponse|void|Promise<UWSProxyErrorResponse|void>}
+ * @returns {UWSProxyErrorResponse|void|Promise<UWSProxyErrorResponse|void>}
  */
 
 // endregion
@@ -235,7 +259,6 @@ const UWS_SSL_KEYS = [
  * ```
  *
  * @see More examples in the [examples repository](https://github.com/jordan-breton/uws-reverse-proxy-examples)
- *
  */
 class UWSProxy {
 
@@ -247,28 +270,28 @@ class UWSProxy {
 	 *
 	 * It's also meant to be a helper for further updates, where new configuration options will be added.
 	 *
-	 * using this method to configure UWSProxy is strongly recommended.
+	 * Using this method to configure UWSProxy is strongly recommended.
 	 *
-	 * @param {UWSProxyHTTPConfigOpts}   [config=Object]  Configuration object
-	 * @return {UWSProxyHTTPConfig}
+	 * @param {UWSProxyHTTPConfigOpts} [config=Object] - Configuration object.
+	 * @returns {UWSProxyHTTPConfig} A valid HTTP configuration.
 	 */
-	static createHTTPConfig(config = {}){
+	static createHTTPConfig(config = {}) {
 		const {
 			port = 35974,
 			host = '127.0.0.1',
 			protocol = 'http',
 			quiet = false,
-			client = {}
+			client = {},
 		} = config || {};
 
-		if(
+		if (
 			!quiet
 			&& protocol === 'https'
 			&& ['localhost', '127.0.0.1'].includes(host.toLowerCase().trim())
-		){
+		) {
 			console.warn(
 				'[WARN] UWSProxy: you configured the proxy to forward to a local HTTPS server.'
-				+ ' You should consider using an HTTP server, as TLS have an impact on performances.'
+				+ ' You should consider using an HTTP server, as TLS have an impact on performances.',
 			);
 		}
 
@@ -277,7 +300,7 @@ class UWSProxy {
 			host,
 			port,
 			protocol,
-			client: client || {}
+			client: client || {},
 		};
 	}
 
@@ -289,74 +312,78 @@ class UWSProxy {
 	 *
 	 * using this method to configure UWSProxy is strongly recommended.
 	 *
-	 * @param {UWS|UWSTemplatedApp} uWebSocket
-	 * @param {UWSProxyUWSConfigOpts} opts
-	 * @return {UWSProxyUWSConfig}
+	 * @param {UWS|UWSTemplatedApp} uWebSocket - UWebSocket.js package or already created App/SSLApp.
+	 * @param {UWSProxyUWSConfigOpts} opts - Additional uWebsocket.js related options.
+	 * @throws Error If the given configuration is invalid in a way ot another.
+	 * @returns {UWSProxyUWSConfig} A valid configuration object.
 	 */
-	static createUWSConfig(uWebSocket, opts = {}){
-		if(!uWebSocket){
+	static createUWSConfig(uWebSocket, opts = {}) {
+		if (!uWebSocket) {
 			throw new Error(
-				"First argument required! Must be either the uWebSockets.js package itself"
-				+ " (require('uWebSockets.js')) or an instance of"
-				+ " uWebSockets.js:App / uWebSockets.js:SSLApp"
+				'First argument required! Must be either the uWebSockets.js package itself'
+				+ ' (require(\'uWebSockets.js\')) or an instance of'
+				+ ' uWebSockets.js:App / uWebSockets.js:SSLApp',
 			);
 		}
 
 		const {
 			App,
-			SSLApp
+			SSLApp,
 		} = uWebSocket;
 
 		let {
 			ssl = null,
 			port = 443,
 			quiet = false,
-			config = {}
+			config = {},
 		} = opts || {};
 
 		let uwsServer;
 
-		if(!App && !SSLApp){
+		if (!App && !SSLApp) {
 			// If App and SSLApp are undefined, we try to determine if the first argument is a
 			// constructed App or SSLApp. Since the uWebSockets.js package do not expose those
 			// classes, we have to guess using a hacky way... It's not reliable because it may be
 			// changed by the maintainer later, but it's all we have.
-			if(!uWebSocket.constructor?.name?.startsWith('uWS.')){
+			if (!uWebSocket.constructor?.name?.startsWith('uWS.')) {
 				throw new Error(
-					"The first argument doesn't seems to be a uWebSockets.js app"
-					+ " nor the uWebSockets.js package itself."
+					'The first argument doesn\'t seems to be a uWebSockets.js app'
+					+ ' nor the uWebSockets.js package itself.',
 				);
-			}else{
-				if(ssl === null){
+			} else {
+				if (ssl === null) {
 					ssl = uWebSocket.constructor.name === 'uWS.SSLApp';
 				}
 
 				uwsServer = uWebSocket;
 			}
-		}else{
-			if(ssl === null){
+		} else {
+			if (ssl === null) {
 				ssl = UWS_SSL_KEYS.some(key => key in config);
 			}
 
-			if(ssl) uwsServer = SSLApp(config);
-			else uwsServer = App(config);
+			if (ssl) {
+				uwsServer = SSLApp(config);
+			} else {
+				uwsServer = App(config);
+			}
 		}
 
-		if(!port || !Number.isInteger(port) || port < 2 || port > 49151){
+		if (!port || !Number.isInteger(port) || port < 2 || port > 49151) {
 			throw new Error('opts.ports must be a valid integer and a valid port number!');
-		}else if(!opts.port && !quiet && port === 443 && !ssl){
+		} else if (!opts.port && !quiet && port === 443 && !ssl) {
 			console.warn(
-				"[WARN] UWSProxy: No port was specified in opts."
-				+ " Default port used is 443."
-			)
+				'[WARN] UWSProxy: No port was specified in opts.'
+				+ ' Default port used is 443.',
+			);
 		}
 
 		return {
 			config,
 			server: uwsServer,
 			ssl,
-			port
-		}
+			port,
+		};
 	}
 
 	// endregion
@@ -386,46 +413,50 @@ class UWSProxy {
 	// endregion
 
 	/**
-	 * @param {UWSProxyUWSConfig}  uwsConfig  uWebSockets.js configuration. You should create it
-	 *                                        with UWSProxy.createUWSConfig
-	 * @param {UWSProxyHTTPConfig} httpConfig HTTP configuration of the target HTTP server. You should create it
-	 *                                        with UWSProxy.createHTTPConfig.
-	 * @param {UWSProxyOpts}       opts Proxy configuration options.
+	 * @param {UWSProxyUWSConfig} uwsConfig - uWebSockets.js configuration. You should create it
+	 * with UWSProxy.createUWSConfig
+	 * @param {UWSProxyHTTPConfig} httpConfig - HTTP configuration of the target HTTP server. You should create it
+	 * with UWSProxy.createHTTPConfig.
+	 * @param {UWSProxyOpts} opts - Proxy configuration options.
 	 */
 	constructor(
 		uwsConfig,
 		httpConfig,
-		opts = {}
+		opts = {},
 	) {
-		if(!uwsConfig) throw new Error('No uWebSockets.js configuration provided!');
-		if(!httpConfig) httpConfig = UWSProxy.createHTTPConfig();
+		if (!uwsConfig) {
+			throw new Error('No uWebSockets.js configuration provided!');
+		}
+		if (!httpConfig) {
+			httpConfig = UWSProxy.createHTTPConfig();
+		}
 
 		const {
 			routes = null,
 			headers = {},
 			timeout = 300000,
 			on : {
-				error = null
+				error = null,
 			} = {},
 			backpressure: {
-				maxStackedBuffers = 4096
-			} = {}
+				maxStackedBuffers = 4096,
+			} = {},
 		} = opts || {};
 
 		this._uwsConfig = uwsConfig;
 		this._httpConfig = httpConfig;
 		this._opts = {
 			backpressure: {
-				maxStackedBuffers: typeof maxStackedBuffers === 'number' ? maxStackedBuffers : 4096
+				maxStackedBuffers: typeof maxStackedBuffers === 'number' ? maxStackedBuffers : 4096,
 			},
 			headers: headers || {},
 			routes: routes || {
-				any: '/*'
+				any: '/*',
 			},
 			timeout: typeof timeout === 'number' ? timeout : 300000,
 			on: {
-				error
-			}
+				error,
+			},
 		};
 
 		this._httpClient = new HTTPClient(httpConfig.client);
@@ -438,9 +469,10 @@ class UWSProxy {
 	 *
 	 * Note that the `config` property is the raw object passed as a parameter to
 	 * UWSProxy.createUWSConfig.
-	 * @return {UWSProxyUWSConfig}
+	 *
+	 * @returns {UWSProxyUWSConfig} Valid uWebSocket configuration.
 	 */
-	get uws(){
+	get uws() {
 		const {
 			config,
 			server,
@@ -452,7 +484,7 @@ class UWSProxy {
 			config,
 			server,
 			ssl,
-			port
+			port,
 		};
 	}
 
@@ -461,21 +493,22 @@ class UWSProxy {
 	 *
 	 * Note that the `config` property is the raw object passed as a parameter to
 	 * UWSProxy.createHTTPConfig.
-	 * @return {UWSProxyHTTPConfig}
+	 *
+	 * @returns {UWSProxyHTTPConfig} Valid HTTP Configuration.
 	 */
-	get http(){
+	get http() {
 		const {
 			config,
 			host,
 			port,
-			protocol
+			protocol,
 		} = this._httpConfig;
 
 		return {
 			config,
 			host,
 			port,
-			protocol
+			protocol,
 		};
 	}
 
@@ -486,7 +519,7 @@ class UWSProxy {
 	 *
 	 * @important This action can't be undone. uWebSockets.js do not allow listeners removal.
 	 */
-	start(){
+	start() {
 		const { routes } = this._opts;
 		const { server: uwsServer } = this._uwsConfig;
 
@@ -497,16 +530,17 @@ class UWSProxy {
 
 	/**
 	 * Handle a request received by uWebSockets.js and forward it to the http server.
-	 * @param {UWSResponse} uwsResponse
-	 * @param {UWSRequest} uwsRequest
+	 *
+	 * @param {UWSResponse} uwsResponse - uWebsocket.js response object.
+	 * @param {UWSRequest} uwsRequest - uWebSocket.js request object.
 	 */
-	_handleRequest(uwsResponse, uwsRequest){
-		const request = decodeRequest(uwsResponse, uwsRequest)
+	_handleRequest(uwsResponse, uwsRequest) {
+		const request = decodeRequest(uwsResponse, uwsRequest);
 
 		const {
 			host: privateHost,
 			port: privatePort,
-			protocol: privateProtocol
+			protocol: privateProtocol,
 		} = this._httpConfig;
 
 		const { headers: optsHeaders } = this._opts;
@@ -527,11 +561,11 @@ class UWSProxy {
 			headers: Object.assign(
 				{},
 				request.headers,
-				optsHeaders
+				optsHeaders,
 			),
-			response: uwsResponse
+			response: uwsResponse,
 		}, err => {
-			if(err){
+			if (err) {
 				this._tryToRespondToError(err, uwsResponse, request);
 			}
 		});
@@ -542,52 +576,53 @@ class UWSProxy {
 	/**
 	 * Construct a valid error response based on the provided error. The error response
 	 * will be sent (if possible) to the client. To change any of the default response,
-	 * use a UWSProxyErrorHandler callback
-	 * @param {Error} error The error we want to build a response upon
-	 * @return {UWSProxyErrorResponse}
+	 * use a UWSProxyErrorHandler callback.
+	 *
+	 * @param {Error} error - The error we want to build a response upon
+	 * @returns {UWSProxyErrorResponse} - The error response to send to the client.
 	 */
-	_buildErrorResponse(error){
+	_buildErrorResponse(error) {
 		const response = {
 			headers: {},
 			body: undefined,
-			status: undefined
+			status: undefined,
 		};
 
-		switch(error.code){
+		switch (error.code) {
 			case 'ECONNRESET':
 			case 'ECONNABORTED':
 			case 'ECONNREFUSED':
 			case 'E_PIPELINE_OVERFLOW':
-				response.status = "503 Service Unavailable";
+				response.status = '503 Service Unavailable';
 				response.body = `Unable to forward the request to the server (${error.code}).`;
 				break;
 
 			case 'ETIMEDOUT':
-				response.status = "504 Gateway Timeout";
+				response.status = '504 Gateway Timeout';
 				response.body = `No response received from the server in ${this._opts.timeout}ms: request aborted (${error.code}).`;
 				break;
 
 			case 'E_PIPELINE_ABORTED':
-				response.status = "502 Bad Gateway";
+				response.status = '502 Bad Gateway';
 				response.body = `The request have been aborted by the proxy (${error.code}).`;
 				break;
 
 			case 'E_RECIPIENT_ABORTED':
-				response.status = "502 Bad Gateway";
+				response.status = '502 Bad Gateway';
 				response.body = `The recipient server aborted the proxy request (${error.code}).`;
 				break;
 
 			case 'E_INVALID_CONTENT_LENGTH':
 			case 'E_INVALID_CHUNK_LENGTH':
-				response.status = "502 Bad Gateway";
+				response.status = '502 Bad Gateway';
 				response.body = `The proxy received a malformed or incomplete response from the server (${error.code}).`;
 				break;
 
 			default:
 
 				// In every other case the response is invalid for a reason or another.
-				response.status = "502 Bad Gateway";
-				response.body = `The proxy encountered a non-handled error (${error.code}).`
+				response.status = '502 Bad Gateway';
+				response.body = `The proxy encountered a non-handled error (${error.code}).`;
 		}
 
 		return response;
@@ -598,31 +633,31 @@ class UWSProxy {
 	 * if the UWSResponse have been aborted/closed already. This method will just fail silently if it
 	 * happens.
 	 *
-	 * @param {UWSResponse} uwsResponse The response we want to write into
-	 * @param {UWSProxyErrorResponse} errorResponse The error to send.
+	 * @param {UWSResponse} uwsResponse - The response we want to write into
+	 * @param {UWSProxyErrorResponse} errorResponse - The error to send back to the client.
 	 */
-	_tryToSendErrorResponse(uwsResponse, errorResponse){
+	_tryToSendErrorResponse(uwsResponse, errorResponse) {
 		const {
 			headers,
 			body,
-			status
+			status,
 		} = errorResponse;
 
-		try{
+		try {
 			writeHeaders(uwsResponse, Object.assign(
 				{},
 				headers,
-				{ status }
+				{ status },
 			));
-		}catch(err){
+		} catch (err) {
 			// We can ignore it, headers may have been sent already
 		}
 
-		try{
+		try {
 			uwsResponse.cork(() => {
 				uwsResponse.end(body);
 			});
-		}catch(err){
+		} catch (err) {
 			// We can ignore it, the uwsResponse has probably been closed already if we go there.
 		}
 	}
@@ -630,27 +665,30 @@ class UWSProxy {
 	/**
 	 * Try to use the provided UWSProxyErrorHandler if it was specified in UWSProxyOpts at UWSProxy
 	 * creation.
-	 * @param {UWSResponse} uwsResponse The response we want to send an error into.
-	 * @param {Error} error The raw error that have been detected.
-	 * @param {UWSDecodedRequest} request Informations about the current request.
-	 * @return {boolean} False if no handler is defined, true otherwise
+	 *
+	 * @param {UWSResponse} uwsResponse - The response we want to send an error into.
+	 * @param {Error} error - The raw error that have been detected.
+	 * @param {UWSDecodedRequest} request - Informations about the current request.
+	 * @returns {boolean} False if no handler is defined, true otherwise
 	 */
-	_tryToUseErrorHandlerResponse(uwsResponse, error, request){
+	_tryToUseErrorHandlerResponse(uwsResponse, error, request) {
 		const {
 			on: {
-				error: errorHandler
-			} = {}
+				error: errorHandler,
+			} = {},
 		} = this._opts;
 
-		if(!errorHandler) return false;
+		if (!errorHandler) {
+			return false;
+		}
 
 		const res = errorHandler(error, request);
 
-		if(isPromise(res)){
+		if (isPromise(res)) {
 			res.then((errorResponse) => {
 				this._tryToSendErrorResponse(
 					uwsResponse,
-					errorResponse || this._buildErrorResponse(error)
+					errorResponse || this._buildErrorResponse(error),
 				);
 			}).catch(err => {
 
@@ -669,12 +707,13 @@ class UWSProxy {
 	/**
 	 * Will try to respond to an error, either by using a UWSProxyErrorHandler (if any) or by sending
 	 * a default error response.
-	 * @param {Error} error The error that have been detected.
-	 * @param {UWSResponse} uwsResponse The response we want to write into.
-	 * @param {UWSDecodedRequest} request Informations about the current request.
+	 *
+	 * @param {Error} error - The error that have been detected.
+	 * @param {UWSResponse} uwsResponse - The response we want to write into.
+	 * @param {UWSDecodedRequest} request - Informations about the current request.
 	 */
-	_tryToRespondToError(error, uwsResponse, request){
-		if(!this._tryToUseErrorHandlerResponse(uwsResponse, error, request)){
+	_tryToRespondToError(error, uwsResponse, request) {
+		if (!this._tryToUseErrorHandlerResponse(uwsResponse, error, request)) {
 			this._tryToSendErrorResponse(uwsResponse, this._buildErrorResponse(error));
 		}
 	}

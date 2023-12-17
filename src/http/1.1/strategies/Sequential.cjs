@@ -1,13 +1,17 @@
 /**
+ * @file Sequential request sender strategy implementation.
+ */
+
+/**
  * @implements {ISendingStrategy}
  */
-class Sequential{
+class Sequential {
 
 	acceptsMoreRequests() {
 		throw new Error('Not implemented');
 	}
 
-	scheduleSend(request, responseCallback, callback) {
+	scheduleSend(_request, _responseCallback, _callback) {
 		throw new Error('Not implemented');
 	}
 
